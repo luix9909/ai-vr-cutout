@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 Grab سهل مع + صور</title>
+    <title>AI AR Cutout - Quest 2 Grab سهل</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
     <style>
@@ -23,16 +23,16 @@
         <button onclick="addFileInput()">+ إضافة حقل لصور أكثر</button>
         <button onclick="processAndPlace()">معالجة ووضع الصور</button>
         <button onclick="clearAll()" style="background:#f33;">مسح الكل</button>
-        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR (غرفتك)</button>
-        <div id="status">جاهز... (اشر بالليزر + اضغط grip على أي مكان في منطقة الصورة عشان تحركها)</div>
+        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
+        <div id="status">جاهز... (الصورة باينة، المنطقة المحيطة شفافة لكن تقدر تمسك منها)</div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true">
         <a-light type="ambient" intensity="0.8"></a-light>
 
-        <!-- Controllers مع ليزر يستهدف grabBox فقط -->
-        <a-entity hand-controls="hand: left" laser-controls="hand: left" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan; lineOpacity: 0.9"></a-entity>
-        <a-entity hand-controls="hand: right" laser-controls="hand: right" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan; lineOpacity: 0.9"></a-entity>
+        <!-- Controllers مع ليزر يستهدف grabBox -->
+        <a-entity hand-controls="hand: left" laser-controls="hand: left" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan"></a-entity>
+        <a-entity hand-controls="hand: right" laser-controls="hand: right" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan"></a-entity>
 
         <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
@@ -47,7 +47,6 @@
         selfie.setOptions({modelSelection: 0});
         selfie.onResults(onResults);
 
-        // Component بسيط للـ grab/move: يربط الكونتينر بالـ controller لما تضغط grip
         AFRAME.registerComponent('easy-grab', {
             init: function () {
                 this.grabbed = false;
@@ -58,12 +57,12 @@
                     const raycaster = evt.target.components.raycaster;
                     if (raycaster && raycaster.intersections.length > 0) {
                         const hit = raycaster.intersections[0].object.el;
-                        if (hit === this.el) {  // إذا ضغط على الكونتينر نفسه
+                        if (hit === this.el) {
                             this.grabbed = true;
-                            this.controller = evt.target;  // الـ controller اللي ضغط
+                            this.controller = evt.target;
                             this.originalParent = this.el.parentNode;
-                            this.controller.object3D.add(this.el.object3D);  // نعلق الكونتينر على الـ controller
-                            status.textContent = 'تم المسك! حرك الـ controller';
+                            this.controller.object3D.add(this.el.object3D);
+                            status.textContent = 'تم المسك!';
                         }
                     }
                 });
@@ -107,8 +106,8 @@
             const box = document.createElement('a-entity');
             box.setAttribute('class', 'grabBox');
             box.setAttribute('easy-grab', '');
-            box.setAttribute('visible', 'false');  // مخفي تمامًا
-            box.setAttribute('geometry', 'primitive: box; width: 3; height: 4; depth: 0.1');  // منطقة مسك أكبر من الصورة
+            box.setAttribute('material', 'opacity: 0; transparent: true'); // شفاف تمامًا لكن يستقبل الضغط
+            box.setAttribute('geometry', 'primitive: box; width: 3.2; height: 4; depth: 0.1'); // منطقة مسك أكبر
             box.setAttribute('position', `${(placementCount % 5 - 2) * 2} 1.6 ${-5 - Math.floor(placementCount / 5) * 3}`);
 
             const plane = document.createElement('a-plane');
@@ -116,13 +115,12 @@
             plane.setAttribute('width', '2');
             plane.setAttribute('height', '2.8');
             plane.setAttribute('transparent', 'true');
-            plane.setAttribute('material', 'side: double; shader: flat');
-            plane.setAttribute('position', '0 0 0');
+            plane.setAttribute('material', 'side: double; shader: flat; opacity: 1');
 
             box.appendChild(plane);
             scene.appendChild(box);
             placementCount++;
-            status.textContent = 'تم إضافة الصورة! جرب المسك بالـ grip';
+            status.textContent = 'تم إضافة الصورة! جرب المسك بالـ grip (المنطقة حول الصورة شفافة)';
         }
 
         async function processAndPlace() {
@@ -138,7 +136,7 @@
                     }
                 }
             }
-            status.textContent = 'تم الوضع! ادخل AR وجرب';
+            status.textContent = 'تم الوضع! ادخل AR وجرب التحريك';
         }
 
         function addFileInput() {
