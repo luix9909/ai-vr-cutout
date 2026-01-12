@@ -3,47 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 مع ليزر وتحكم</title>
+    <title>AI AR Cutout - Quest 2 Grab سهل مع + صور</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
     <style>
-        body { margin: 0; font-family: Arial; direction: rtl; background: #000; }
-        #ui { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.7); color: #0ff; padding: 15px; text-align: center; z-index: 999; }
+        body { margin: 0; direction: rtl; background: #000; font-family: Arial; }
+        #ui { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #0ff; padding: 15px; text-align: center; z-index: 999; }
         button { padding: 12px 24px; margin: 8px; font-size: 18px; background: #0ff; color: #000; border: none; border-radius: 8px; cursor: pointer; }
         #status { font-size: 20px; margin: 10px; }
-        .file-input { margin: 12px auto; display: block; width: 90%; }
+        .file-input { margin: 10px auto; display: block; width: 90%; background: #222; color: #fff; padding: 8px; border: 1px solid #0ff; }
     </style>
 </head>
 <body>
     <div id="ui">
         <h2>AI AR Cutout - Quest 2</h2>
         <div id="fileInputs">
-            <input type="file" class="file-input" accept="image/*,video/*" multiple>
+            <input type="file" class="file-input" accept="image/*" multiple>
         </div>
-        <button onclick="addFileInput()">+ إضافة حقل تحميل جديد</button>
-        <button onclick="processAndPlace()">معالجة + وضع</button>
+        <button onclick="addFileInput()">+ إضافة حقل لصور أكثر</button>
+        <button onclick="processAndPlace()">معالجة ووضع الصور</button>
         <button onclick="clearAll()" style="background:#f33;">مسح الكل</button>
-        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
-        <div id="status">جاهز... (استخدم الـ controllers: ليزر + grip للمسك + thumbstick للتكبير)</div>
+        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR (غرفتك)</button>
+        <div id="status">جاهز... (اشر بالليزر + اضغط grip على أي مكان في منطقة الصورة عشان تحركها)</div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true">
-        <!-- الإضاءة -->
         <a-light type="ambient" intensity="0.8"></a-light>
 
-        <!-- اليد اليسرى مع ليزر -->
-        <a-entity id="leftHand"
-                  hand-controls="hand: left"
-                  laser-controls="hand: left"
-                  raycaster="objects: .obj; far: 10; showLine: true; lineColor: cyan; lineOpacity: 0.8"
-                  ></a-entity>
-
-        <!-- اليد اليمنى مع ليزر -->
-        <a-entity id="rightHand"
-                  hand-controls="hand: right"
-                  laser-controls="hand: right"
-                  raycaster="objects: .obj; far: 10; showLine: true; lineColor: cyan; lineOpacity: 0.8"
-                  ></a-entity>
+        <!-- Controllers مع ليزر يستهدف grabBox فقط -->
+        <a-entity hand-controls="hand: left" laser-controls="hand: left" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan; lineOpacity: 0.9"></a-entity>
+        <a-entity hand-controls="hand: right" laser-controls="hand: right" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan; lineOpacity: 0.9"></a-entity>
 
         <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
@@ -52,49 +41,40 @@
         const scene = document.querySelector('a-scene');
         const status = document.getElementById('status');
         const fileInputsDiv = document.getElementById('fileInputs');
-        let count = 0;
+        let placementCount = 0;
 
         const selfie = new SelfieSegmentation({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`});
-        selfie.setOptions({modelSelection: 0}); // أسرع
+        selfie.setOptions({modelSelection: 0});
+        selfie.onResults(onResults);
 
-        // Component للتوجيه الدائم للكاميرا + تحكم thumbstick للـ scale/rotate
-        AFRAME.registerComponent('obj-controls', {
+        // Component بسيط للـ grab/move: يربط الكونتينر بالـ controller لما تضغط grip
+        AFRAME.registerComponent('easy-grab', {
             init: function () {
-                this.isGrabbed = false;
-                this.scaleSpeed = 0.005;
-                this.rotateSpeed = 2;
+                this.grabbed = false;
+                this.controller = null;
+                this.originalParent = null;
+
                 this.el.addEventListener('gripdown', (evt) => {
-                    const intersector = evt.detail.raycaster.components.raycaster.intersections[0];
-                    if (intersector && intersector.object.el === this.el) {
-                        this.isGrabbed = true;
-                        status.textContent = 'تم المسك!';
+                    const raycaster = evt.target.components.raycaster;
+                    if (raycaster && raycaster.intersections.length > 0) {
+                        const hit = raycaster.intersections[0].object.el;
+                        if (hit === this.el) {  // إذا ضغط على الكونتينر نفسه
+                            this.grabbed = true;
+                            this.controller = evt.target;  // الـ controller اللي ضغط
+                            this.originalParent = this.el.parentNode;
+                            this.controller.object3D.add(this.el.object3D);  // نعلق الكونتينر على الـ controller
+                            status.textContent = 'تم المسك! حرك الـ controller';
+                        }
                     }
                 });
-                this.el.addEventListener('gripup', () => { this.isGrabbed = false; });
-            },
-            tick: function (t, dt) {
-                // توجيه دائم نحو الكاميرا
-                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
 
-                // إذا مسكت → تحكم بالـ thumbstick
-                if (this.isGrabbed) {
-                    const hands = document.querySelectorAll('[hand-controls]');
-                    hands.forEach(hand => {
-                        const gamepad = hand.components['hand-controls']?.controller?.gamepad;
-                        if (gamepad && gamepad.axes) {
-                            // Thumbstick أفقي → دوران
-                            const rx = gamepad.axes[2] * this.rotateSpeed * (dt / 1000);
-                            this.el.object3D.rotation.y += rx;
-
-                            // Thumbstick رأسي → تكبير/تصغير
-                            const scaleDelta = gamepad.axes[3] * this.scaleSpeed * dt;
-                            if (Math.abs(gamepad.axes[3]) > 0.1) {
-                                const s = 1 + scaleDelta;
-                                this.el.object3D.scale.multiplyScalar(s);
-                            }
-                        }
-                    });
-                }
+                this.el.addEventListener('gripup', () => {
+                    if (this.grabbed) {
+                        this.grabbed = false;
+                        if (this.originalParent) this.originalParent.object3D.add(this.el.object3D);
+                        status.textContent = 'تم الإفلات';
+                    }
+                });
             }
         });
 
@@ -119,27 +99,30 @@
             ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
             ctx.globalCompositeOperation = 'source-in';
             ctx.drawImage(results.image, 0, 0);
-            addEntity(canvas.toDataURL('image/png'), false);
-            status.textContent = 'تم!';
+
+            addEntity(canvas.toDataURL('image/png'));
         }
 
-        selfie.onResults(onResults);
+        function addEntity(url) {
+            const box = document.createElement('a-entity');
+            box.setAttribute('class', 'grabBox');
+            box.setAttribute('easy-grab', '');
+            box.setAttribute('visible', 'false');  // مخفي تمامًا
+            box.setAttribute('geometry', 'primitive: box; width: 3; height: 4; depth: 0.1');  // منطقة مسك أكبر من الصورة
+            box.setAttribute('position', `${(placementCount % 5 - 2) * 2} 1.6 ${-5 - Math.floor(placementCount / 5) * 3}`);
 
-        function addEntity(url, isVideo) {
-            const el = document.createElement('a-entity');
-            el.className = 'obj';
-            const x = (count % 5 - 2) * 1.5;
-            const z = -4 - Math.floor(count / 5) * 2;
-            el.setAttribute('position', `${x} 1.6 ${z}`);
-            el.setAttribute('obj-controls', '');
+            const plane = document.createElement('a-plane');
+            plane.setAttribute('src', url);
+            plane.setAttribute('width', '2');
+            plane.setAttribute('height', '2.8');
+            plane.setAttribute('transparent', 'true');
+            plane.setAttribute('material', 'side: double; shader: flat');
+            plane.setAttribute('position', '0 0 0');
 
-            const content = isVideo
-                ? `<a-video src="${url}" width="2.5" height="3.5" loop autoplay playsinline></a-video>`
-                : `<a-plane src="${url}" width="2" height="2.8" transparent="true" material="side: double; shader: flat"></a-plane>`;
-
-            el.innerHTML = content;
-            scene.appendChild(el);
-            count++;
+            box.appendChild(plane);
+            scene.appendChild(box);
+            placementCount++;
+            status.textContent = 'تم إضافة الصورة! جرب المسك بالـ grip';
         }
 
         async function processAndPlace() {
@@ -147,29 +130,30 @@
             status.textContent = 'جاري المعالجة...';
 
             for (const input of inputs) {
-                for (const file of input.files) {
-                    if (file.type.startsWith('image/')) {
-                        await processImage(file);
-                    } else if (file.type.startsWith('video/')) {
-                        addEntity(URL.createObjectURL(file), true);
+                if (input.files && input.files.length > 0) {
+                    for (const file of input.files) {
+                        if (file.type.startsWith('image/')) {
+                            await processImage(file);
+                        }
                     }
                 }
             }
+            status.textContent = 'تم الوضع! ادخل AR وجرب';
         }
 
         function addFileInput() {
             const input = document.createElement('input');
             input.type = 'file';
             input.className = 'file-input';
-            input.accept = 'image/*,video/*';
+            input.accept = 'image/*';
             input.multiple = true;
             fileInputsDiv.appendChild(input);
         }
 
         function clearAll() {
-            document.querySelectorAll('.obj').forEach(e => e.remove());
-            count = 0;
-            status.textContent = 'تم المسح';
+            document.querySelectorAll('.grabBox').forEach(e => e.remove());
+            placementCount = 0;
+            status.textContent = 'تم المسح الكل';
         }
     </script>
 </body>
