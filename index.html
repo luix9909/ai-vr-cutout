@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 مع + للإضافة</title>
+    <title>AI AR Cutout - Quest 2 مع تكبير وتوجيه</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-super-hands-component@3.1.1/dist/aframe-super-hands-component.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+    <!-- لتحسين الـ collider والتفاعل -->
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.4.0/dist/aframe-extras.min.js"></script>
     <style>
         body { margin: 0; font-family: Arial; direction: rtl; }
         #uploadSection { 
@@ -48,7 +50,7 @@
 <body>
     <div id="uploadSection">
         <h1>AI AR Cutout - Quest 2</h1>
-        <p>اضغط + عشان تضيف حقول تحميل أكثر → حمل صور/فيديوهات → اضغط "وضع الكل"</p>
+        <p>اضغط + لإضافة حقول → حمل → "وضع الكل" → في AR: Grip (زر A) للمسك + حرك، Grip بيدين للتكبير/تصغير</p>
         
         <div id="fileInputs">
             <input type="file" class="file-input" accept="image/*,video/*">
@@ -57,13 +59,20 @@
         <button id="addInputButton" onclick="addFileInput()">+ إضافة حقل تحميل جديد</button>
         <button onclick="placeAll()">وضع الكل في الغرفة</button>
         <button onclick="clearAll()">مسح الكل</button>
-        <button id="enterARButton" onclick="enterARMode()">دخول وضع AR (غرفتك الحقيقية)</button>
+        <button id="enterARButton" onclick="enterARMode()">دخول وضع AR</button>
         <div id="thumbnails"></div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true" xr-mode-ui="enabled: false">
-        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .interactive; far: 10" hand-controls="hand: left; model: true; handTrackingEnabled: true" super-hands="colliderEvent: raycaster-intersection; colliderEventProperty: els; colliderEndEvent: raycaster-intersection-cleared; colliderEndEventProperty: clearedEls"></a-entity>
-        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .interactive; far: 10" hand-controls="hand: right; model: true; handTrackingEnabled: true" super-hands="colliderEvent: raycaster-intersection; colliderEventProperty: els; colliderEndEvent: raycaster-intersection-cleared; colliderEndEventProperty: clearedEls"></a-entity>
+        <!-- يدين/كنترولرز -->
+        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .interactive; far: 10" 
+                  hand-controls="hand: left; model: true; handTrackingEnabled: true" 
+                  super-hands="colliderEvent: raycaster-intersection; colliderEventProperty: els; colliderEndEvent: raycaster-intersection-cleared; colliderEndEventProperty: clearedEls">
+        </a-entity>
+        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .interactive; far: 10" 
+                  hand-controls="hand: right; model: true; handTrackingEnabled: true" 
+                  super-hands="colliderEvent: raycaster-intersection; colliderEventProperty: els; colliderEndEvent: raycaster-intersection-cleared; colliderEndEventProperty: clearedEls">
+        </a-entity>
         
         <a-camera></a-camera>
     </a-scene>
@@ -75,12 +84,25 @@
         let processedItems = [];
         let placementCount = 0;
 
-        function enterARMode() {
-            if (scene.is('ar-mode')) {
-                alert('أنت بالفعل في وضع AR!');
-            } else {
-                scene.enterAR();
+        // Component لتوجيه الصورة نحو الكاميرا أثناء المسك
+        AFRAME.registerComponent('face-camera-when-grabbed', {
+            init: function () {
+                this.isGrabbed = false;
+                this.el.addEventListener('grab-start', () => { this.isGrabbed = true; });
+                this.el.addEventListener('grab-end', () => { this.isGrabbed = false; });
+            },
+            tick: function () {
+                if (this.isGrabbed) {
+                    const camera = scene.camera;
+                    if (camera) {
+                        this.el.object3D.lookAt(camera.position);
+                    }
+                }
             }
+        });
+
+        function enterARMode() {
+            scene.enterAR();
         }
 
         function addFileInput() {
@@ -91,9 +113,7 @@
             fileInputsDiv.appendChild(newInput);
         }
 
-        const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
-        }});
+        const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`});
         selfieSegmentation.setOptions({ modelSelection: 1 });
         selfieSegmentation.onResults(onResults);
 
@@ -105,8 +125,6 @@
             placementCount = 0;
 
             const inputs = document.querySelectorAll('.file-input');
-            let pendingImages = 0;
-
             inputs.forEach(input => {
                 if (input.files.length > 0) {
                     Array.from(input.files).forEach(file => {
@@ -114,7 +132,6 @@
                         const url = URL.createObjectURL(file);
 
                         if (!isVideo) {
-                            pendingImages++;
                             const img = new Image();
                             img.onload = () => {
                                 selfieSegmentation.send({image: img});
@@ -127,27 +144,20 @@
                     });
                 }
             });
-
-            if (pendingImages === 0) {
-                alert('لا توجد صور للمعالجة!');
-            }
         }
 
         function onResults(results) {
             if (!currentResults) return;
-
             const canvas = document.createElement('canvas');
             canvas.width = results.image.width;
             canvas.height = results.image.height;
             const ctx = canvas.getContext('2d');
-
             ctx.save();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
             ctx.globalCompositeOperation = 'source-in';
             ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
             ctx.restore();
-
             const processedUrl = canvas.toDataURL('image/png');
             addToProcessed(processedUrl, false);
         }
@@ -172,9 +182,14 @@
             const gridZ = -3 - Math.floor(placementCount / 4) * 3;
             entity.setAttribute('position', `${gridX} 1.6 ${gridZ}`);
 
+            // التفاعل
             entity.setAttribute('hoverable', '');
             entity.setAttribute('grabbable', '');
-            entity.setAttribute('stretchable', '');
+            entity.setAttribute('stretchable', 'invert: true'); // invert يخلي التكبير طبيعي
+            entity.setAttribute('face-camera-when-grabbed', ''); // التوجيه الجديد
+
+            // collider بسيط لتحسين الكشف
+            entity.setAttribute('aabb-collider', 'objects: .interactive');
 
             let html = '';
             if (isVideo) {
@@ -190,13 +205,11 @@
 
         function placeAll() {
             collectAndProcessFiles();
-            // الـ processedItems هتتملأ تدريجيًا، لكن الـ place يحصل بعد المعالجة
-            // لتبسيط، ننتظر شوية أو نعدل لاحقًا إذا لزم
             setTimeout(() => {
-                if (processedItems.length === 0) return alert('حمل صور أولاً وانتظر المعالجة!');
+                if (processedItems.length === 0) return alert('حمل وانتظر المعالجة!');
                 processedItems.forEach(item => addToScene(item.url, item.isVideo));
-                alert('تم الوضع! اضغط الزر الأخضر للدخول AR');
-            }, 3000); // تأخير بسيط عشان الـ AI يخلص (يمكن تحسين لاحقًا)
+                alert('تم! في AR: Grip (A) للمسك + حرك + وجه نحوك، Grip بيدين للتكبير/تصغير');
+            }, 3000);
         }
 
         function clearAll() {
@@ -206,6 +219,8 @@
             thumbnailsDiv.innerHTML = '';
             fileInputsDiv.innerHTML = '<input type="file" class="file-input" accept="image/*,video/*">';
         }
+
+        document.getElementById('fileUpload')?.addEventListener('change', collectAndProcessFiles);
     </script>
 </body>
 </html>
