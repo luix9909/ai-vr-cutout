@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 (نسخة بسيطة ومريحة)</title>
+    <title>AI AR Cutout - Quest 2 (دائرة حولك)</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
     <style>
@@ -16,24 +16,20 @@
 </head>
 <body>
     <div id="ui">
-        <h2>AI AR Cutout - Quest 2</h2>
+        <h2>AI AR Cutout - دائرة حولك</h2>
         <div id="fileInputs">
             <input type="file" class="file-input" accept="image/*,video/*" multiple>
         </div>
-        <button onclick="addFileInput()">+ إضافة حقل لملفات أكثر</button>
-        <button onclick="processAndPlace()">معالجة ووضع الملفات</button>
-        <button onclick="clearAll()" style="background:rgb(51, 224, 255);">مسح الكل</button>
-        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR (غرفتك)</button>
-        <div id="status">جاهز... (الصور/الفيديوهات قريبة منك بحجم معقول وعلى بعد ~5 أقدام)</div>
+        <button onclick="addFileInput()">+ إضافة ملفات أكثر</button>
+        <button onclick="processAndPlace()">معالجة ووضع في دائرة</button>
+        <button onclick="clearAll()" style="background:#f33;">مسح الكل</button>
+        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
+        <div id="status">جاهز... (الصور محوطة حولك على شكل دائرة، موجهة عليك دائمًا)</div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true">
         <a-light type="ambient" intensity="0.9"></a-light>
         <a-light type="directional" position="-2 3 -1" intensity="0.7"></a-light>
-
-        <!-- Controllers (للدخول AR فقط، التحريك حاليًا معطل مؤقتًا) -->
-        <a-entity hand-controls="hand: left"></a-entity>
-        <a-entity hand-controls="hand: right"></a-entity>
 
         <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
@@ -43,6 +39,15 @@
         const status = document.getElementById('status');
         const fileInputsDiv = document.getElementById('fileInputs');
         let placementCount = 0;
+
+        // Component: يخلي العنصر يوجه وجهه للكاميرا دائمًا
+        AFRAME.registerComponent('always-face-camera', {
+            tick: function () {
+                if (scene.camera) {
+                    this.el.object3D.lookAt(scene.camera.position);
+                }
+            }
+        });
 
         const selfie = new SelfieSegmentation({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`});
         selfie.setOptions({modelSelection: 0});
@@ -76,18 +81,18 @@
         function addEntity(url, isVideo) {
             const entity = document.createElement('a-entity');
 
-            // توزيع في شبكة أمامك (حوالي 5 أقدام = z ≈ -1.5)
-            const col = placementCount % 5;
-            const row = Math.floor(placementCount / 5);
-            const x = (col - 2) * 1.2;          // أفقي: متباعد شوي
-            const y = 1.4 + row * 0.3;           // ارتفاع متنوع قليلاً
-            const z = -1.5 - row * 0.8;          // مسافة ~1.5 متر (5 أقدام تقريبًا)
+            // توزيع على دائرة حولك (نصف قطر ≈ 2.8 متر)
+            const radius = 2.8; // المسافة منك ≈ 2.8 متر (حوالي 9 أقدام)
+            const angle = (placementCount * 45) % 360; // كل عنصر يزيد 45 درجة (8 عناصر كاملة دائرة)
+            const x = radius * Math.sin(angle * Math.PI / 180);
+            const z = -radius * Math.cos(angle * Math.PI / 180); // سالب عشان يكون أمامك أولاً
+            const y = 1.0; // ارتفاع متوسط مريح
 
             entity.setAttribute('position', `${x} ${y} ${z}`);
 
-            // حجم معقول جدًا
-            const width = isVideo ? 2.2 : 1.8;
-            const height = isVideo ? 3.0 : 2.5;
+            // حجم واقعي ومناسب
+            const width = isVideo ? 1.8 : 1.6;
+            const height = isVideo ? 2.4 : 2.2;
 
             let content = '';
             if (isVideo) {
@@ -97,10 +102,14 @@
             }
 
             entity.innerHTML = content;
+
+            // توجيه دائم عليك
+            entity.setAttribute('always-face-camera', '');
+
             scene.appendChild(entity);
             placementCount++;
 
-            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} رقم ${placementCount}`;
+            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} رقم ${placementCount} (في الدائرة حولك)`;
         }
 
         async function processAndPlace() {
@@ -118,7 +127,7 @@
                     }
                 }
             }
-            status.textContent = 'تم وضع كل الملفات! ادخل AR وشوف';
+            status.textContent = 'تم وضع كل الملفات في دائرة حولك!';
         }
 
         function addFileInput() {
@@ -131,7 +140,9 @@
         }
 
         function clearAll() {
-            document.querySelectorAll('a-entity > *').forEach(e => e.parentNode.removeChild(e));
+            while (scene.firstChild) {
+                scene.removeChild(scene.firstChild);
+            }
             placementCount = 0;
             status.textContent = 'تم مسح كل شيء';
         }
