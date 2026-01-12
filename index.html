@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 Grab سهل</title>
+    <title>AI AR Cutout - Quest 2 (نسخة بسيطة ومريحة)</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
     <style>
@@ -18,21 +18,22 @@
     <div id="ui">
         <h2>AI AR Cutout - Quest 2</h2>
         <div id="fileInputs">
-            <input type="file" class="file-input" accept="image/*" multiple>
+            <input type="file" class="file-input" accept="image/*,video/*" multiple>
         </div>
-        <button onclick="addFileInput()">+ إضافة حقل لصور أكثر</button>
-        <button onclick="processAndPlace()">معالجة ووضع الصور</button>
-        <button onclick="clearAll()" style="background:#f33;">مسح الكل</button>
-        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
-        <div id="status">جاهز... (الصورة باينة، المنطقة المحيطة شفافة لكن تقدر تمسك منها)</div>
+        <button onclick="addFileInput()">+ إضافة حقل لملفات أكثر</button>
+        <button onclick="processAndPlace()">معالجة ووضع الملفات</button>
+        <button onclick="clearAll()" style="background:rgb(51, 224, 255);">مسح الكل</button>
+        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR (غرفتك)</button>
+        <div id="status">جاهز... (الصور/الفيديوهات قريبة منك بحجم معقول وعلى بعد ~5 أقدام)</div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true">
-        <a-light type="ambient" intensity="0.8"></a-light>
+        <a-light type="ambient" intensity="0.9"></a-light>
+        <a-light type="directional" position="-2 3 -1" intensity="0.7"></a-light>
 
-        <!-- Controllers مع ليزر يستهدف grabBox -->
-        <a-entity hand-controls="hand: left" laser-controls="hand: left" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan"></a-entity>
-        <a-entity hand-controls="hand: right" laser-controls="hand: right" raycaster="objects: .grabBox; far: 15; showLine: true; lineColor: cyan"></a-entity>
+        <!-- Controllers (للدخول AR فقط، التحريك حاليًا معطل مؤقتًا) -->
+        <a-entity hand-controls="hand: left"></a-entity>
+        <a-entity hand-controls="hand: right"></a-entity>
 
         <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
@@ -46,36 +47,6 @@
         const selfie = new SelfieSegmentation({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`});
         selfie.setOptions({modelSelection: 0});
         selfie.onResults(onResults);
-
-        AFRAME.registerComponent('easy-grab', {
-            init: function () {
-                this.grabbed = false;
-                this.controller = null;
-                this.originalParent = null;
-
-                this.el.addEventListener('gripdown', (evt) => {
-                    const raycaster = evt.target.components.raycaster;
-                    if (raycaster && raycaster.intersections.length > 0) {
-                        const hit = raycaster.intersections[0].object.el;
-                        if (hit === this.el) {
-                            this.grabbed = true;
-                            this.controller = evt.target;
-                            this.originalParent = this.el.parentNode;
-                            this.controller.object3D.add(this.el.object3D);
-                            status.textContent = 'تم المسك!';
-                        }
-                    }
-                });
-
-                this.el.addEventListener('gripup', () => {
-                    if (this.grabbed) {
-                        this.grabbed = false;
-                        if (this.originalParent) this.originalParent.object3D.add(this.el.object3D);
-                        status.textContent = 'تم الإفلات';
-                    }
-                });
-            }
-        });
 
         async function processImage(file) {
             status.textContent = 'جاري إزالة الخلفية...';
@@ -99,28 +70,37 @@
             ctx.globalCompositeOperation = 'source-in';
             ctx.drawImage(results.image, 0, 0);
 
-            addEntity(canvas.toDataURL('image/png'));
+            addEntity(canvas.toDataURL('image/png'), false);
         }
 
-        function addEntity(url) {
-            const box = document.createElement('a-entity');
-            box.setAttribute('class', 'grabBox');
-            box.setAttribute('easy-grab', '');
-            box.setAttribute('material', 'opacity: 0; transparent: true'); // شفاف تمامًا لكن يستقبل الضغط
-            box.setAttribute('geometry', 'primitive: box; width: 3.2; height: 4; depth: 0.1'); // منطقة مسك أكبر
-            box.setAttribute('position', `${(placementCount % 5 - 2) * 2} 1.6 ${-5 - Math.floor(placementCount / 5) * 3}`);
+        function addEntity(url, isVideo) {
+            const entity = document.createElement('a-entity');
 
-            const plane = document.createElement('a-plane');
-            plane.setAttribute('src', url);
-            plane.setAttribute('width', '2');
-            plane.setAttribute('height', '2.8');
-            plane.setAttribute('transparent', 'true');
-            plane.setAttribute('material', 'side: double; shader: flat; opacity: 1');
+            // توزيع في شبكة أمامك (حوالي 5 أقدام = z ≈ -1.5)
+            const col = placementCount % 5;
+            const row = Math.floor(placementCount / 5);
+            const x = (col - 2) * 1.2;          // أفقي: متباعد شوي
+            const y = 1.4 + row * 0.3;           // ارتفاع متنوع قليلاً
+            const z = -1.5 - row * 0.8;          // مسافة ~1.5 متر (5 أقدام تقريبًا)
 
-            box.appendChild(plane);
-            scene.appendChild(box);
+            entity.setAttribute('position', `${x} ${y} ${z}`);
+
+            // حجم معقول جدًا
+            const width = isVideo ? 2.2 : 1.8;
+            const height = isVideo ? 3.0 : 2.5;
+
+            let content = '';
+            if (isVideo) {
+                content = `<a-video src="${url}" width="${width}" height="${height}" loop="true" autoplay="true" playsinline="true"></a-video>`;
+            } else {
+                content = `<a-plane src="${url}" width="${width}" height="${height}" transparent="true" material="side: double; shader: flat"></a-plane>`;
+            }
+
+            entity.innerHTML = content;
+            scene.appendChild(entity);
             placementCount++;
-            status.textContent = 'تم إضافة الصورة! جرب المسك بالـ grip (المنطقة حول الصورة شفافة)';
+
+            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} رقم ${placementCount}`;
         }
 
         async function processAndPlace() {
@@ -132,26 +112,28 @@
                     for (const file of input.files) {
                         if (file.type.startsWith('image/')) {
                             await processImage(file);
+                        } else if (file.type.startsWith('video/')) {
+                            addEntity(URL.createObjectURL(file), true);
                         }
                     }
                 }
             }
-            status.textContent = 'تم الوضع! ادخل AR وجرب التحريك';
+            status.textContent = 'تم وضع كل الملفات! ادخل AR وشوف';
         }
 
         function addFileInput() {
             const input = document.createElement('input');
             input.type = 'file';
             input.className = 'file-input';
-            input.accept = 'image/*';
+            input.accept = 'image/*,video/*';
             input.multiple = true;
             fileInputsDiv.appendChild(input);
         }
 
         function clearAll() {
-            document.querySelectorAll('.grabBox').forEach(e => e.remove());
+            document.querySelectorAll('a-entity > *').forEach(e => e.parentNode.removeChild(e));
             placementCount = 0;
-            status.textContent = 'تم المسح الكل';
+            status.textContent = 'تم مسح كل شيء';
         }
     </script>
 </body>
