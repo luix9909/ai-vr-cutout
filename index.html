@@ -3,77 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 مع تكبير وتوجيه</title>
+    <title>AI AR Cutout - Quest 2 Optimized Speed</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-super-hands-component@3.1.1/dist/aframe-super-hands-component.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
-    <!-- لتحسين الـ collider والتفاعل -->
     <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.4.0/dist/aframe-extras.min.js"></script>
     <style>
         body { margin: 0; font-family: Arial; direction: rtl; }
-        #uploadSection { 
-            padding: 20px; 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            width: 100%; 
-            background: rgba(255,255,255,0.8); 
-            z-index: 100; 
-            text-align: center; 
-            border-top: 2px solid #ea00ff;
-        }
-        #enterARButton { 
-            padding: 15px 30px; 
-            font-size: 24px; 
-            background: #28a745; 
-            color: white; 
-            border: none; 
-            cursor: pointer; 
-            margin: 10px; 
-            border-radius: 10px;
-        }
-        #addInputButton { 
-            padding: 15px 30px; 
-            font-size: 24px; 
-            background: #94865b; 
-            color: black; 
-            border: none; 
-            cursor: pointer; 
-            margin: 10px; 
-            border-radius: 10px;
-        }
+        #uploadSection { padding: 20px; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.8); z-index: 100; text-align: center; border-top: 2px solid #007bff; }
+        #enterARButton { padding: 15px 30px; font-size: 24px; background: #28a745; color: white; border: none; cursor: pointer; margin: 10px; border-radius: 10px; }
+        #addInputButton { padding: 15px 30px; font-size: 24px; background: #ffc107; color: black; border: none; cursor: pointer; margin: 10px; border-radius: 10px; }
         button { padding: 10px 20px; font-size: 18px; margin: 10px; background: #007bff; color: white; border: none; cursor: pointer; }
         .file-input { margin: 10px 0; }
         #thumbnails { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-height: 200px; overflow-y: auto; }
+        #status { font-size: 18px; color: #d9534f; margin: 10px; }
     </style>
 </head>
 <body>
     <div id="uploadSection">
-        <h1>AI AR Cutout - Quest 2</h1>
-        <p>اضغط + لإضافة حقول → حمل → "وضع الكل" → في AR: Grip (زر A) للمسك + حرك، Grip بيدين للتكبير/تصغير</p>
-        
+        <h1>AI AR Cutout - Quest 2 (سرعة محسنة)</h1>
+        <p>حمل صور/فيديوهات → انتظر المعالجة → اضغط "وضع الكل"</p>
         <div id="fileInputs">
             <input type="file" class="file-input" accept="image/*,video/*">
         </div>
-        
-        <button id="addInputButton" onclick="addFileInput()">+ إضافة حقل تحميل جديد</button>
+        <button id="addInputButton" onclick="addFileInput()">+ إضافة حقل تحميل</button>
         <button onclick="placeAll()">وضع الكل في الغرفة</button>
         <button onclick="clearAll()">مسح الكل</button>
         <button id="enterARButton" onclick="enterARMode()">دخول وضع AR</button>
+        <div id="status">جاهز...</div>
         <div id="thumbnails"></div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true" xr-mode-ui="enabled: false">
-        <!-- يدين/كنترولرز -->
-        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .interactive; far: 10" 
-                  hand-controls="hand: left; model: true; handTrackingEnabled: true" 
-                  super-hands="colliderEvent: raycaster-intersection; colliderEventProperty: els; colliderEndEvent: raycaster-intersection-cleared; colliderEndEventProperty: clearedEls">
-        </a-entity>
-        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .interactive; far: 10" 
-                  hand-controls="hand: right; model: true; handTrackingEnabled: true" 
-                  super-hands="colliderEvent: raycaster-intersection; colliderEventProperty: els; colliderEndEvent: raycaster-intersection-cleared; colliderEndEventProperty: clearedEls">
-        </a-entity>
-        
+        <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .interactive; far: 10" hand-controls="hand: left; model: true; handTrackingEnabled: true" super-hands></a-entity>
+        <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .interactive; far: 10" hand-controls="hand: right; model: true; handTrackingEnabled: true" super-hands></a-entity>
         <a-camera></a-camera>
     </a-scene>
 
@@ -81,10 +44,10 @@
         const scene = document.querySelector('a-scene');
         const thumbnailsDiv = document.getElementById('thumbnails');
         const fileInputsDiv = document.getElementById('fileInputs');
+        const statusDiv = document.getElementById('status');
         let processedItems = [];
         let placementCount = 0;
 
-        // Component لتوجيه الصورة نحو الكاميرا أثناء المسك
         AFRAME.registerComponent('face-camera-when-grabbed', {
             init: function () {
                 this.isGrabbed = false;
@@ -94,16 +57,12 @@
             tick: function () {
                 if (this.isGrabbed) {
                     const camera = scene.camera;
-                    if (camera) {
-                        this.el.object3D.lookAt(camera.position);
-                    }
+                    if (camera) this.el.object3D.lookAt(camera.position);
                 }
             }
         });
 
-        function enterARMode() {
-            scene.enterAR();
-        }
+        function enterARMode() { scene.enterAR(); }
 
         function addFileInput() {
             const newInput = document.createElement('input');
@@ -114,36 +73,32 @@
         }
 
         const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`});
-        selfieSegmentation.setOptions({ modelSelection: 1 });
+        selfieSegmentation.setOptions({ modelSelection: 0 }); // 0 = landscape (أسرع!)
         selfieSegmentation.onResults(onResults);
 
         let currentResults = null;
 
-        function collectAndProcessFiles() {
-            thumbnailsDiv.innerHTML = '';
-            processedItems = [];
-            placementCount = 0;
+        async function processImageFile(file) {
+            statusDiv.textContent = 'جاري معالجة الصور...';
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            await new Promise(resolve => { img.onload = resolve; img.src = url; });
 
-            const inputs = document.querySelectorAll('.file-input');
-            inputs.forEach(input => {
-                if (input.files.length > 0) {
-                    Array.from(input.files).forEach(file => {
-                        const isVideo = file.type.startsWith('video/');
-                        const url = URL.createObjectURL(file);
+            // Resize لتسريع (max 512px width)
+            const canvas = document.createElement('canvas');
+            const maxWidth = 512;
+            let width = img.width;
+            let height = img.height;
+            if (width > maxWidth) {
+                height = Math.round(height * (maxWidth / width));
+                width = maxWidth;
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
 
-                        if (!isVideo) {
-                            const img = new Image();
-                            img.onload = () => {
-                                selfieSegmentation.send({image: img});
-                                currentResults = {url, isVideo: false};
-                            };
-                            img.src = url;
-                        } else {
-                            addToProcessed(url, true);
-                        }
-                    });
-                }
-            });
+            await selfieSegmentation.send({image: canvas});
         }
 
         function onResults(results) {
@@ -160,6 +115,7 @@
             ctx.restore();
             const processedUrl = canvas.toDataURL('image/png');
             addToProcessed(processedUrl, false);
+            statusDiv.textContent = 'تمت معالجة صورة!';
         }
 
         function addToProcessed(url, isVideo) {
@@ -174,31 +130,44 @@
             thumbnailsDiv.appendChild(div);
         }
 
+        function collectAndProcessFiles() {
+            const inputs = document.querySelectorAll('.file-input');
+            processedItems = [];
+            placementCount = 0;
+            thumbnailsDiv.innerHTML = '';
+
+            inputs.forEach(input => {
+                if (input.files.length > 0) {
+                    Array.from(input.files).forEach(file => {
+                        const isVideo = file.type.startsWith('video/');
+                        if (isVideo) {
+                            const url = URL.createObjectURL(file);
+                            addToProcessed(url, true);
+                        } else {
+                            currentResults = {url: URL.createObjectURL(file), isVideo: false};
+                            processImageFile(file);
+                        }
+                    });
+                }
+            });
+        }
+
         function addToScene(url, isVideo) {
             const entity = document.createElement('a-entity');
             entity.classList.add('interactive');
-
             const gridX = (placementCount % 4 - 1.5) * 2;
             const gridZ = -3 - Math.floor(placementCount / 4) * 3;
             entity.setAttribute('position', `${gridX} 1.6 ${gridZ}`);
-
-            // التفاعل
             entity.setAttribute('hoverable', '');
             entity.setAttribute('grabbable', '');
-            entity.setAttribute('stretchable', 'invert: true'); // invert يخلي التكبير طبيعي
-            entity.setAttribute('face-camera-when-grabbed', ''); // التوجيه الجديد
-
-            // collider بسيط لتحسين الكشف
+            entity.setAttribute('stretchable', 'invert: true');
+            entity.setAttribute('face-camera-when-grabbed', '');
             entity.setAttribute('aabb-collider', 'objects: .interactive');
 
-            let html = '';
-            if (isVideo) {
-                html = `<a-video src="${url}" width="2.5" height="4" loop="true" autoplay="true" playsinline></a-video>`;
-            } else {
-                html = `<a-plane src="${url}" transparent="true" width="2" height="3" material="side: double; shader: flat"></a-plane>`;
-            }
+            let html = isVideo 
+                ? `<a-video src="${url}" width="2.5" height="4" loop="true" autoplay="true" playsinline></a-video>`
+                : `<a-plane src="${url}" transparent="true" width="2" height="3" material="side: double; shader: flat"></a-plane>`;
             entity.innerHTML = html;
-
             scene.appendChild(entity);
             placementCount++;
         }
@@ -206,10 +175,11 @@
         function placeAll() {
             collectAndProcessFiles();
             setTimeout(() => {
-                if (processedItems.length === 0) return alert('حمل وانتظر المعالجة!');
+                if (processedItems.length === 0) return alert('حمل صور وانتظر!');
                 processedItems.forEach(item => addToScene(item.url, item.isVideo));
-                alert('تم! في AR: Grip (A) للمسك + حرك + وجه نحوك، Grip بيدين للتكبير/تصغير');
-            }, 3000);
+                statusDiv.textContent = 'تم الوضع! ادخل AR';
+                alert('تم! في AR: Grip (A) للمسك + حرك + وجه نحوك، Grip بيدين للتكبير');
+            }, 4000); // تأخير لإعطاء وقت للمعالجة
         }
 
         function clearAll() {
@@ -218,9 +188,8 @@
             processedItems = [];
             thumbnailsDiv.innerHTML = '';
             fileInputsDiv.innerHTML = '<input type="file" class="file-input" accept="image/*,video/*">';
+            statusDiv.textContent = 'تم المسح!';
         }
-
-        document.getElementById('fileUpload')?.addEventListener('change', collectAndProcessFiles);
     </script>
 </body>
 </html>
