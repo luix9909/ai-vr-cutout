@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 محسّن 2026</title>
+    <title>AI AR Cutout - Quest 2 مع ليزر وتحكم</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
     <style>
@@ -11,75 +11,104 @@
         #ui { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.7); color: #0ff; padding: 15px; text-align: center; z-index: 999; }
         button { padding: 12px 24px; margin: 8px; font-size: 18px; background: #0ff; color: #000; border: none; border-radius: 8px; cursor: pointer; }
         #status { font-size: 20px; margin: 10px; }
+        .file-input { margin: 12px auto; display: block; width: 90%; }
     </style>
 </head>
 <body>
     <div id="ui">
         <h2>AI AR Cutout - Quest 2</h2>
-        <input type="file" id="files" accept="image/*,video/*" multiple style="margin:10px;">
+        <div id="fileInputs">
+            <input type="file" class="file-input" accept="image/*,video/*" multiple>
+        </div>
+        <button onclick="addFileInput()">+ إضافة حقل تحميل جديد</button>
         <button onclick="processAndPlace()">معالجة + وضع</button>
         <button onclick="clearAll()" style="background:#f33;">مسح الكل</button>
         <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
-        <div id="status">جاهز... (استخدم الـ controllers للتحكم)</div>
+        <div id="status">جاهز... (استخدم الـ controllers: ليزر + grip للمسك + thumbstick للتكبير)</div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true">
+        <!-- الإضاءة -->
         <a-light type="ambient" intensity="0.8"></a-light>
+
+        <!-- اليد اليسرى مع ليزر -->
+        <a-entity id="leftHand"
+                  hand-controls="hand: left"
+                  laser-controls="hand: left"
+                  raycaster="objects: .obj; far: 10; showLine: true; lineColor: cyan; lineOpacity: 0.8"
+                  ></a-entity>
+
+        <!-- اليد اليمنى مع ليزر -->
+        <a-entity id="rightHand"
+                  hand-controls="hand: right"
+                  laser-controls="hand: right"
+                  raycaster="objects: .obj; far: 10; showLine: true; lineColor: cyan; lineOpacity: 0.8"
+                  ></a-entity>
+
         <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
 
     <script>
         const scene = document.querySelector('a-scene');
         const status = document.getElementById('status');
+        const fileInputsDiv = document.getElementById('fileInputs');
         let count = 0;
 
         const selfie = new SelfieSegmentation({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`});
         selfie.setOptions({modelSelection: 0}); // أسرع
 
-        // Component للتوجيه دايمًا نحو الكاميرا (billboard)
-        AFRAME.registerComponent('always-face-camera', {
-            tick: function () {
-                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
-            }
-        });
-
-        // Component للتحكم اليدوي بالدوران والميل (thumbstick)
-        AFRAME.registerComponent('manual-rotate-scale', {
+        // Component للتوجيه الدائم للكاميرا + تحكم thumbstick للـ scale/rotate
+        AFRAME.registerComponent('obj-controls', {
             init: function () {
-                this.rotationSpeed = 0.8;
-                this.scaleSpeed = 0.002;
-            },
-            tick: function (t, dt) {
-                const hands = document.querySelectorAll('[hand-controls]');
-                hands.forEach(hand => {
-                    const gamepad = hand.components['hand-controls'].controller?.gamepad;
-                    if (gamepad && gamepad.axes) {
-                        const rx = gamepad.axes[2] * this.rotationSpeed * (dt/1000);
-                        const ry = gamepad.axes[3] * this.rotationSpeed * (dt/1000);
-                        this.el.object3D.rotation.y += rx;
-                        this.el.object3D.rotation.x += ry;
-
-                        // Scale بـ thumbstick vertical
-                        if (Math.abs(gamepad.axes[3]) > 0.1) {
-                            const s = 1 + gamepad.axes[3] * this.scaleSpeed * dt;
-                            this.el.object3D.scale.multiplyScalar(s);
-                        }
+                this.isGrabbed = false;
+                this.scaleSpeed = 0.005;
+                this.rotateSpeed = 2;
+                this.el.addEventListener('gripdown', (evt) => {
+                    const intersector = evt.detail.raycaster.components.raycaster.intersections[0];
+                    if (intersector && intersector.object.el === this.el) {
+                        this.isGrabbed = true;
+                        status.textContent = 'تم المسك!';
                     }
                 });
+                this.el.addEventListener('gripup', () => { this.isGrabbed = false; });
+            },
+            tick: function (t, dt) {
+                // توجيه دائم نحو الكاميرا
+                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
+
+                // إذا مسكت → تحكم بالـ thumbstick
+                if (this.isGrabbed) {
+                    const hands = document.querySelectorAll('[hand-controls]');
+                    hands.forEach(hand => {
+                        const gamepad = hand.components['hand-controls']?.controller?.gamepad;
+                        if (gamepad && gamepad.axes) {
+                            // Thumbstick أفقي → دوران
+                            const rx = gamepad.axes[2] * this.rotateSpeed * (dt / 1000);
+                            this.el.object3D.rotation.y += rx;
+
+                            // Thumbstick رأسي → تكبير/تصغير
+                            const scaleDelta = gamepad.axes[3] * this.scaleSpeed * dt;
+                            if (Math.abs(gamepad.axes[3]) > 0.1) {
+                                const s = 1 + scaleDelta;
+                                this.el.object3D.scale.multiplyScalar(s);
+                            }
+                        }
+                    });
+                }
             }
         });
 
         async function processImage(file) {
             status.textContent = 'جاري إزالة الخلفية...';
             const url = URL.createObjectURL(file);
-            const img = await new Promise(r => {const i=new Image();i.onload=()=>r(i);i.src=url;});
+            const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = url; });
 
             const canvas = document.createElement('canvas');
-            let w=512, h=(img.height/img.width)*512;
-            canvas.width=w; canvas.height=h;
-            canvas.getContext('2d').drawImage(img,0,0,w,h);
+            let w = 512, h = (img.height / img.width) * 512;
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
 
-            await selfie.send({image:canvas});
+            await selfie.send({image: canvas});
         }
 
         function onResults(results) {
@@ -98,14 +127,15 @@
 
         function addEntity(url, isVideo) {
             const el = document.createElement('a-entity');
-            el.setAttribute('class', 'obj');
-            el.setAttribute('position', `${(count%5-2)*1.2} 1.5 ${-3-Math.floor(count/5)*1.5}`);
-            el.setAttribute('always-face-camera', '');
-            el.setAttribute('manual-rotate-scale', '');
+            el.className = 'obj';
+            const x = (count % 5 - 2) * 1.5;
+            const z = -4 - Math.floor(count / 5) * 2;
+            el.setAttribute('position', `${x} 1.6 ${z}`);
+            el.setAttribute('obj-controls', '');
 
             const content = isVideo
-                ? `<a-video src="${url}" width="2" height="3" loop autoplay playsinline></a-video>`
-                : `<a-plane src="${url}" width="1.8" height="2.4" transparent="true" material="side:double;shader:flat"></a-plane>`;
+                ? `<a-video src="${url}" width="2.5" height="3.5" loop autoplay playsinline></a-video>`
+                : `<a-plane src="${url}" width="2" height="2.8" transparent="true" material="side: double; shader: flat"></a-plane>`;
 
             el.innerHTML = content;
             scene.appendChild(el);
@@ -113,18 +143,27 @@
         }
 
         async function processAndPlace() {
-            const files = document.getElementById('files').files;
-            if (!files.length) return alert('اختر ملفات أولاً');
+            const inputs = document.querySelectorAll('.file-input');
+            status.textContent = 'جاري المعالجة...';
 
-            for (const file of files) {
-                if (file.type.startsWith('image/')) {
-                    await processImage(file);
-                } else if (file.type.startsWith('video/')) {
-                    // ملاحظة: إزالة خلفية فيديو client-side ثقيلة جدًا على Quest 2، فحطيته بدون للسرعة
-                    addEntity(URL.createObjectURL(file), true);
-                    status.textContent += ' (فيديو بدون إزالة خلفية)';
+            for (const input of inputs) {
+                for (const file of input.files) {
+                    if (file.type.startsWith('image/')) {
+                        await processImage(file);
+                    } else if (file.type.startsWith('video/')) {
+                        addEntity(URL.createObjectURL(file), true);
+                    }
                 }
             }
+        }
+
+        function addFileInput() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.className = 'file-input';
+            input.accept = 'image/*,video/*';
+            input.multiple = true;
+            fileInputsDiv.appendChild(input);
         }
 
         function clearAll() {
