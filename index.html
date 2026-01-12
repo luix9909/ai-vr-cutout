@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI AR/VR Cutout - موقعك المتطور</title>
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-super-hands-component@3.1.1/dist/aframe-super-hands-component.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+    <style>
+        body { margin: 0; font-family: Arial; text-align: center; background: #f0f0f0; direction: rtl; }
+        #uploadSection { padding: 20px; }
+        #thumbnails { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .thumb { border: 2px solid #000; }
+        button { padding: 10px 20px; font-size: 18px; margin: 10px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div id="uploadSection">
+        <h1>موقع AI AR/VR Cutout الخاص بك</h1>
+        <p>حمل صور أو فيديوهات، الـ AI يشيل الخلفية من الصور، ووضعها في غرفتك الحقيقية!</p>
+        <input type="file" id="fileUpload" multiple accept="image/*,video/*">
+        <button onclick="clearAll()">مسح جميع العناصر</button>
+        <div id="thumbnails"></div>
+    </div>
+
+    <a-scene embedded vr-mode-ui="enabled: true" background="color: black">
+        <!-- اليدين للتحريك في VR/AR -->
+        <a-entity id="leftHand" hand-controls="hand: left" super-hands></a-entity>
+        <a-entity id="rightHand" hand-controls="hand: right" super-hands></a-entity>
+        
+        <a-camera></a-camera>
+    </a-scene>
+
+    <script>
+        const scene = document.querySelector('a-scene');
+        const thumbnailsDiv = document.getElementById('thumbnails');
+        let placementCount = 0;
+
+        const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+        }});
+        selfieSegmentation.setOptions({ modelSelection: 1 });
+        selfieSegmentation.onResults(onResults);
+
+        let currentResults = null;
+
+        function handleFiles() {
+            const files = document.getElementById('fileUpload').files;
+            thumbnailsDiv.innerHTML = '';
+            placementCount = 0;
+
+            Array.from(files).forEach(file => {
+                const isVideo = file.type.startsWith('video/');
+                const url = URL.createObjectURL(file);
+
+                if (!isVideo) {
+                    // للصور: معالجة إزالة الخلفية
+                    const img = new Image();
+                    img.onload = () => {
+                        selfieSegmentation.send({image: img});
+                        currentResults = {url, file, img}; // حفظ للنتائج
+                    };
+                    img.src = url;
+                } else {
+                    // للفيديو: عرض مباشرة بدون إزالة خلفية (ثقيلة)
+                    addThumbnail(url, true);
+                }
+            });
+        }
+
+        function onResults(results) {
+            if (!currentResults) return;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = results.image.width;
+            canvas.height = results.image.height;
+            const ctx = canvas.getContext('2d');
+
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'source-in';
+            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+
+            const processedUrl = canvas.toDataURL('image/png');
+            addThumbnail(processedUrl, false);
+        }
+
+        function addThumbnail(url, isVideo) {
+            const div = document.createElement('div');
+            const thumb = document.createElement(isVideo ? 'video' : 'img');
+            thumb.src = url;
+            thumb.classList.add('thumb');
+            thumb.width = 200;
+            thumb.height = 300;
+            if (isVideo) thumb.autoplay = true; thumb.loop = true; thumb.muted = true;
+
+            const placeBtn = document.createElement('button');
+            placeBtn.textContent = 'وضع في الغرفة';
+            placeBtn.onclick = () => addToScene(url, isVideo);
+
+            div.appendChild(thumb);
+            div.appendChild(placeBtn);
+            thumbnailsDiv.appendChild(div);
+        }
+
+        function addToScene(url, isVideo) {
+            const entity = document.createElement('a-entity');
+            entity.classList.add('cutout');
+
+            // حساب مكان مختلف لكل عنصر (شبكة بسيطة)
+            const gridX = (placementCount % 3 - 1) * 2.5; // -2.5, 0, 2.5
+            const gridZ = -3 - Math.floor(placementCount / 3) * 3;
+            entity.setAttribute('position', `${gridX} 1.6 ${gridZ}`);
+
+            let html = '';
+            if (isVideo) {
+                html = `<a-video src="${url}" width="2.5" height="4" loop="true" autoplay="true" playsinline webkit-playsinline></a-video>`;
+            } else {
+                html = `<a-plane src="${url}" transparent="true" width="2" height="3" material="side: double; shader: flat"></a-plane>`;
+            }
+            entity.innerHTML = html;
+
+            scene.appendChild(entity);
+            placementCount++;
+            alert('تم الوضع! ادخل وضع AR/VR وامسكها بيديك عشان تحركها');
+        }
+
+        function clearAll() {
+            document.querySelectorAll('.cutout').forEach(el => el.remove());
+            placementCount = 0;
+            alert('تم المسح!');
+        }
+
+        document.getElementById('fileUpload').addEventListener('change', handleFiles);
+    </script>
+</body>
+</html>
