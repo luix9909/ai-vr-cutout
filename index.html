@@ -3,25 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Gallery - Quest 2 (داكن + فيديو شغال)</title>
+    <title>AI AR Gallery - Quest 2 (بار دائم في VR)</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <style>
         body { margin: 0; direction: rtl; background: #0a0a0a; font-family: Arial; color: #e0e0e0; }
-        #ui { 
-            position: fixed; bottom: 0; left: 0; width: 100%; 
-            background: rgba(15,15,20,0.92); color: #a5f3fc; 
-            padding: 12px; text-align: center; z-index: 999; 
+        #ui {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(15,15,20,0.92); color: #a5f3fc;
+            padding: 10px; text-align: center; z-index: 9999; /* زيادة z-index عشان يبقى فوق كل شيء حتى في VR */
             border-top: 2px solid #0ea5e9; overflow-x: auto; white-space: nowrap;
+            pointer-events: auto; /* مهم جدًا عشان يتقبل الضغط في VR */
         }
-        .thumb { 
-            width: 110px; height: 150px; margin: 8px; 
-            object-fit: cover; border: 2px solid #0ea5e9; 
-            border-radius: 8px; cursor: pointer; display: inline-block; 
+        .thumb {
+            width: 110px; height: 150px; margin: 8px;
+            object-fit: cover; border: 2px solid #0ea5e9;
+            border-radius: 8px; cursor: pointer; display: inline-block;
             background: #111; box-shadow: 0 0 10px rgba(14,165,233,0.3);
         }
-        button { 
-            padding: 10px 18px; margin: 6px; font-size: 16px; 
-            background: #0ea5e9; color: #000; border: none; 
+        button {
+            padding: 10px 18px; margin: 6px; font-size: 16px;
+            background: #0ea5e9; color: #000; border: none;
             border-radius: 6px; cursor: pointer; font-weight: bold;
         }
         button.delete { background: #ef4444; color: white; }
@@ -31,10 +32,10 @@
 </head>
 <body>
     <div id="ui">
-        <h3>معرض الصور والفيديوهات (داكن)</h3>
+        <h3>معرض الملفات (مرئي دائمًا حتى في VR)</h3>
         <input type="file" id="fileInput" accept="image/*,video/*" multiple style="margin:10px;">
         <div id="thumbnails"></div>
-        <div id="status">جاهز... ارفع ملفاتك ثم اضغط عليها في البار لإضافتها (الفيديوهات تشغل تلقائي)</div>
+        <div id="status">جاهز... اضغط على أي صورة/فيديو في البار لإضافتها في الغرفة (حتى وأنت في AR)</div>
         <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
     </div>
 
@@ -61,65 +62,6 @@
             }
         });
 
-        // Component للأزرار + التحكم
-        AFRAME.registerComponent('media-controls', {
-            init: function () {
-                this.moving = false;
-                this.controller = null;
-
-                // زر Move
-                const move = document.createElement('a-entity');
-                move.setAttribute('geometry', 'primitive: plane; width: 0.8; height: 0.4');
-                move.setAttribute('material', 'color: #0ea5e9; opacity: 0.8');
-                move.setAttribute('position', '0 1.3 0.05');
-                move.setAttribute('text', 'value: Move; color: #000; align: center; width: 2');
-                move.addEventListener('click', () => {
-                    this.moving = !this.moving;
-                    status.textContent = this.moving ? 'وضع التحريك مفعل - grip + حرك' : 'التحريك معطل';
-                });
-                this.el.appendChild(move);
-
-                // زر Scale
-                const scale = document.createElement('a-entity');
-                scale.setAttribute('geometry', 'primitive: plane; width: 0.8; height: 0.4');
-                scale.setAttribute('material', 'color: #fbbf24; opacity: 0.8');
-                scale.setAttribute('position', '1 1.3 0.05');
-                scale.setAttribute('text', 'value: Scale; color: #000; align: center; width: 2');
-                scale.addEventListener('click', () => {
-                    this.scaling = !this.scaling;
-                    status.textContent = this.scaling ? 'وضع التكبير مفعل - thumbstick رأسي' : 'التكبير معطل';
-                });
-                this.el.appendChild(scale);
-
-                // زر Delete
-                const del = document.createElement('a-entity');
-                del.setAttribute('geometry', 'primitive: plane; width: 0.8; height: 0.4');
-                del.setAttribute('material', 'color: #ef4444; opacity: 0.8');
-                del.setAttribute('position', '-1 1.3 0.05');
-                del.setAttribute('text', 'value: Delete; color: white; align: center; width: 2');
-                del.addEventListener('click', () => {
-                    this.el.parentNode.removeChild(this.el);
-                    status.textContent = 'تم حذف العنصر';
-                });
-                this.el.appendChild(del);
-            },
-            tick: function (t, dt) {
-                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
-
-                // تحريك بسيط بالـ grip
-                if (this.moving) {
-                    const hands = document.querySelectorAll('[hand-controls]');
-                    hands.forEach(hand => {
-                        if (hand.components['hand-controls'].controller) {
-                            const pos = hand.object3D.getWorldPosition(new THREE.Vector3());
-                            this.el.object3D.position.copy(pos);
-                            this.el.object3D.position.y -= 0.4; // تعديل ارتفاع
-                        }
-                    });
-                }
-            }
-        });
-
         function addThumbnail(file) {
             const url = URL.createObjectURL(file);
             const isVideo = file.type.startsWith('video/');
@@ -135,6 +77,7 @@
 
             thumb.onclick = () => {
                 addEntity(url, isVideo);
+                status.textContent = 'تم إضافة العنصر في الغرفة (اضغط grip للتحكم إذا أردت)';
             };
 
             thumbnailsDiv.appendChild(thumb);
@@ -142,7 +85,11 @@
 
         function addEntity(url, isVideo) {
             const entity = document.createElement('a-entity');
-            entity.setAttribute('position', `${(placementCount % 6 - 2.5) * 2.2} 1.2 -3`);
+
+            // توزيع بسيط أمامك (يمكن تعديله لاحقًا لدائرة)
+            const x = (placementCount % 5 - 2) * 1.8;
+            const z = -2.5 - Math.floor(placementCount / 5) * 1.2;
+            entity.setAttribute('position', `${x} 1.4 ${z}`);
 
             const width = isVideo ? 1.8 : 1.6;
             const height = isVideo ? 2.4 : 2.2;
@@ -153,12 +100,11 @@
 
             entity.innerHTML = content;
             entity.setAttribute('always-face-camera', '');
-            entity.setAttribute('media-controls', '');
 
             scene.appendChild(entity);
             placementCount++;
 
-            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} (شغال تلقائيًا)`;
+            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} في الغرفة`;
         }
 
         document.getElementById('fileInput').addEventListener('change', (e) => {
