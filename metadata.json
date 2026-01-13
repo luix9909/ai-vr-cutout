@@ -1,0 +1,8 @@
+{
+  "name": "AI AR Gallery Pro",
+  "description": "A futuristic AR/VR gallery that organizes your photos and videos in circular tiers around you with a high-end black and purple aesthetic.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
