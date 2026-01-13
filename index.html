@@ -3,35 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 (دائرة حولك مع فيديو شغال)</title>
+    <title>AI AR Gallery - Quest 2 (داكن + فيديو شغال)</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
     <style>
-        body { margin: 0; direction: rtl; background: #000; font-family: Arial; }
-        #ui { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.8); color: #0ff; padding: 15px; text-align: center; z-index: 999; }
-        button { padding: 12px 24px; margin: 8px; font-size: 18px; background: #0ff; color: #000; border: none; border-radius: 8px; cursor: pointer; }
-        #status { font-size: 20px; margin: 10px; }
-        .file-input { margin: 10px auto; display: block; width: 90%; background: #222; color: #fff; padding: 8px; border: 1px solid #0ff; }
+        body { margin: 0; direction: rtl; background: #0a0a0a; font-family: Arial; color: #e0e0e0; }
+        #ui { 
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: rgba(15,15,20,0.92); color: #a5f3fc; 
+            padding: 12px; text-align: center; z-index: 999; 
+            border-top: 2px solid #0ea5e9; overflow-x: auto; white-space: nowrap;
+        }
+        .thumb { 
+            width: 110px; height: 150px; margin: 8px; 
+            object-fit: cover; border: 2px solid #0ea5e9; 
+            border-radius: 8px; cursor: pointer; display: inline-block; 
+            background: #111; box-shadow: 0 0 10px rgba(14,165,233,0.3);
+        }
+        button { 
+            padding: 10px 18px; margin: 6px; font-size: 16px; 
+            background: #0ea5e9; color: #000; border: none; 
+            border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+        button.delete { background: #ef4444; color: white; }
+        #status { font-size: 18px; margin: 8px; color: #a5f3fc; }
+        .file-input { margin: 10px auto; display: block; width: 90%; background: #111; color: #e0e0e0; padding: 8px; border: 1px solid #0ea5e9; border-radius: 6px; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h2>AI AR Cutout - دائرة حولك</h2>
-        <div id="fileInputs">
-            <input type="file" class="file-input" accept="image/*,video/*" multiple>
-        </div>
-        <button onclick="addFileInput()">+ إضافة حقل لملفات أكثر</button>
-        <button onclick="processAndPlace()">معالجة ووضع الملفات</button>
-        <button onclick="clearAll()" style="background:#f33;">مسح الكل</button>
+        <h3>معرض الصور والفيديوهات (داكن)</h3>
+        <input type="file" id="fileInput" accept="image/*,video/*" multiple style="margin:10px;">
+        <div id="thumbnails"></div>
+        <div id="status">جاهز... ارفع ملفاتك ثم اضغط عليها في البار لإضافتها (الفيديوهات تشغل تلقائي)</div>
         <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
-        <div id="status">جاهز... (الفيديوهات شغالة تلقائيًا مع loop)</div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true">
-        <a-assets id="assets"></a-assets>  <!-- لتحميل الملفات مسبقًا -->
+        <a-assets id="assets"></a-assets>
 
-        <a-light type="ambient" intensity="0.9"></a-light>
-        <a-light type="directional" position="-2 3 -1" intensity="0.7"></a-light>
+        <a-light type="ambient" intensity="0.7"></a-light>
+        <a-light type="directional" position="-2 4 -2" intensity="0.5" color="#a5f3fc"></a-light>
 
         <a-camera position="0 1.6 0"></a-camera>
     </a-scene>
@@ -39,118 +50,140 @@
     <script>
         const scene = document.querySelector('a-scene');
         const assets = document.getElementById('assets');
+        const thumbnailsDiv = document.getElementById('thumbnails');
         const status = document.getElementById('status');
-        const fileInputsDiv = document.getElementById('fileInputs');
         let placementCount = 0;
 
-        // Component: يخلي العنصر يوجه وجهه للكاميرا دائمًا
+        // Component لتوجيه دائم للكاميرا
         AFRAME.registerComponent('always-face-camera', {
             tick: function () {
-                if (scene.camera) {
-                    this.el.object3D.lookAt(scene.camera.position);
+                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
+            }
+        });
+
+        // Component للأزرار + التحكم
+        AFRAME.registerComponent('media-controls', {
+            init: function () {
+                this.moving = false;
+                this.controller = null;
+
+                // زر Move
+                const move = document.createElement('a-entity');
+                move.setAttribute('geometry', 'primitive: plane; width: 0.8; height: 0.4');
+                move.setAttribute('material', 'color: #0ea5e9; opacity: 0.8');
+                move.setAttribute('position', '0 1.3 0.05');
+                move.setAttribute('text', 'value: Move; color: #000; align: center; width: 2');
+                move.addEventListener('click', () => {
+                    this.moving = !this.moving;
+                    status.textContent = this.moving ? 'وضع التحريك مفعل - grip + حرك' : 'التحريك معطل';
+                });
+                this.el.appendChild(move);
+
+                // زر Scale
+                const scale = document.createElement('a-entity');
+                scale.setAttribute('geometry', 'primitive: plane; width: 0.8; height: 0.4');
+                scale.setAttribute('material', 'color: #fbbf24; opacity: 0.8');
+                scale.setAttribute('position', '1 1.3 0.05');
+                scale.setAttribute('text', 'value: Scale; color: #000; align: center; width: 2');
+                scale.addEventListener('click', () => {
+                    this.scaling = !this.scaling;
+                    status.textContent = this.scaling ? 'وضع التكبير مفعل - thumbstick رأسي' : 'التكبير معطل';
+                });
+                this.el.appendChild(scale);
+
+                // زر Delete
+                const del = document.createElement('a-entity');
+                del.setAttribute('geometry', 'primitive: plane; width: 0.8; height: 0.4');
+                del.setAttribute('material', 'color: #ef4444; opacity: 0.8');
+                del.setAttribute('position', '-1 1.3 0.05');
+                del.setAttribute('text', 'value: Delete; color: white; align: center; width: 2');
+                del.addEventListener('click', () => {
+                    this.el.parentNode.removeChild(this.el);
+                    status.textContent = 'تم حذف العنصر';
+                });
+                this.el.appendChild(del);
+            },
+            tick: function (t, dt) {
+                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
+
+                // تحريك بسيط بالـ grip
+                if (this.moving) {
+                    const hands = document.querySelectorAll('[hand-controls]');
+                    hands.forEach(hand => {
+                        if (hand.components['hand-controls'].controller) {
+                            const pos = hand.object3D.getWorldPosition(new THREE.Vector3());
+                            this.el.object3D.position.copy(pos);
+                            this.el.object3D.position.y -= 0.4; // تعديل ارتفاع
+                        }
+                    });
                 }
             }
         });
 
-        const selfie = new SelfieSegmentation({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`});
-        selfie.setOptions({modelSelection: 0});
-        selfie.onResults(onResults);
-
-        async function processImage(file) {
-            status.textContent = 'جاري إزالة الخلفية...';
+        function addThumbnail(file) {
             const url = URL.createObjectURL(file);
-            const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = url; });
+            const isVideo = file.type.startsWith('video/');
+            const thumb = document.createElement(isVideo ? 'video' : 'img');
+            thumb.src = url;
+            thumb.className = 'thumb';
+            if (isVideo) {
+                thumb.muted = true;
+                thumb.autoplay = true;
+                thumb.loop = true;
+                thumb.playsinline = true;
+            }
 
-            const canvas = document.createElement('canvas');
-            let w = 512, h = (img.height / img.width) * 512;
-            canvas.width = w; canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            thumb.onclick = () => {
+                addEntity(url, isVideo);
+            };
 
-            await selfie.send({image: canvas});
-        }
-
-        function onResults(results) {
-            const canvas = document.createElement('canvas');
-            canvas.width = results.image.width;
-            canvas.height = results.image.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-            ctx.globalCompositeOperation = 'source-in';
-            ctx.drawImage(results.image, 0, 0);
-
-            addEntity(canvas.toDataURL('image/png'), false);
+            thumbnailsDiv.appendChild(thumb);
         }
 
         function addEntity(url, isVideo) {
             const entity = document.createElement('a-entity');
+            entity.setAttribute('position', `${(placementCount % 6 - 2.5) * 2.2} 1.2 -3`);
 
-            // توزيع على دائرة حولك (نصف قطر ≈ 2.8 متر)
-            const radius = 2.8; // المسافة منك ≈ 2.8 متر (حوالي 9 أقدام)
-            const angle = (placementCount * 45) % 360; // كل عنصر يزيد 45 درجة (8 عناصر كاملة دائرة)
-            const x = radius * Math.sin(angle * Math.PI / 180);
-            const z = -radius * Math.cos(angle * Math.PI / 180); // سالب عشان يكون أمامك أولاً
-            const y = 1.0; // ارتفاع متوسط مريح
-
-            entity.setAttribute('position', `${x} ${y} ${z}`);
-
-            // حجم واقعي ومناسب
             const width = isVideo ? 1.8 : 1.6;
             const height = isVideo ? 2.4 : 2.2;
 
-            // أضف للـ assets للتحميل مسبقًا
-            const id = `media${placementCount}`;
-            const assetItem = document.createElement('a-asset-item');
-            assetItem.setAttribute('id', id);
-            assetItem.setAttribute('src', url);
-            assetItem.setAttribute('preload', 'auto');
-            assets.appendChild(assetItem);
-
-            let content = '';
-            if (isVideo) {
-                content = `<a-video src="#${id}" width="${width}" height="${height}" loop="true" autoplay="true" playsinline="true" muted="true"></a-video>`;
-            } else {
-                content = `<a-plane src="${url}" width="${width}" height="${height}" transparent="true" material="side: double; shader: flat"></a-plane>`;
-            }
+            let content = isVideo
+                ? `<a-video src="${url}" width="${width}" height="${height}" loop="true" autoplay="true" playsinline="true" muted="true"></a-video>`
+                : `<a-plane src="${url}" width="${width}" height="${height}" transparent="true" material="side: double; shader: flat"></a-plane>`;
 
             entity.innerHTML = content;
-
-            // توجيه دائم عليك
             entity.setAttribute('always-face-camera', '');
+            entity.setAttribute('media-controls', '');
 
             scene.appendChild(entity);
             placementCount++;
 
-            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} رقم ${placementCount} (الفيديو شغال مع loop)`;
+            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} (شغال تلقائيًا)`;
         }
 
-        async function processAndPlace() {
-            const inputs = document.querySelectorAll('.file-input');
-            status.textContent = 'جاري المعالجة...';
-
-            for (const input of inputs) {
-                if (input.files && input.files.length > 0) {
-                    for (const file of input.files) {
-                        if (file.type.startsWith('image/')) {
-                            await processImage(file);
-                        } else if (file.type.startsWith('video/')) {
-                            addEntity(URL.createObjectURL(file), true);
-                        }
-                    }
-                }
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            for (const file of e.target.files) {
+                addThumbnail(file);
             }
-            status.textContent = 'تم وضع كل الملفات في دائرة حولك!';
-        }
+        });
 
         function addFileInput() {
             const input = document.createElement('input');
             input.type = 'file';
-            input.className = 'file-input';
             input.accept = 'image/*,video/*';
             input.multiple = true;
-            fileInputsDiv.appendChild(input);
+            input.addEventListener('change', (e) => {
+                for (const file of e.target.files) {
+                    addThumbnail(file);
+                }
+            });
+            document.body.appendChild(input);
+            input.click();
+            document.body.removeChild(input);
         }
 
         function clearAll() {
+            thumbnailsDiv.innerHTML = '';
             while (scene.firstChild) {
                 scene.removeChild(scene.firstChild);
             }
