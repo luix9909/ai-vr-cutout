@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI AR Gallery Pro - Black & Purple</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-event-set-component@^5.0.0/dist/aframe-event-set-component.min.js"></script>
     <style>
-        body { margin: 0; direction: rtl; background: #050014; font-family: Arial; color: #d8b4fe; }
+        body { margin: 0; direction: rtl; background: #050014; font-family: Arial; color: #d8b4fe; overflow-x: hidden; }
         #ui {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: rgba(20,10,40,0.96); color: #c084fc;
@@ -14,213 +15,639 @@
             box-shadow: 0 -5px 30px rgba(126,34,206,0.5);
             pointer-events: auto; overflow-x: auto; white-space: nowrap;
             text-align: center; z-index: 9999;
+            box-sizing: border-box;
         }
         .thumb {
             width: 110px; height: 150px; margin: 8px;
             object-fit: cover; border: 3px solid #7e22ce;
             border-radius: 12px; cursor: pointer; display: inline-block;
             background: #12021a; box-shadow: 0 0 18px rgba(126,34,206,0.6);
+            transition: transform 0.3s;
+        }
+        .thumb:hover {
+            transform: scale(1.05);
+            border-color: #c084fc;
         }
         button {
             padding: 10px 20px; margin: 6px; font-size: 16px;
             background: #7e22ce; color: white; border: none;
             border-radius: 8px; cursor: pointer; font-weight: bold;
             box-shadow: 0 0 12px rgba(126,34,206,0.7);
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #9333ea;
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(126,34,206,0.9);
         }
         button.delete { background: #c026d3; }
+        button.delete:hover { background: #d946ef; }
         button.rotate { background: #a855f7; }
         button.reset { background: #6b21a8; }
-        #status { font-size: 18px; margin: 10px; color: #c084fc; text-shadow: 0 0 10px #7e22ce; }
+        #status { 
+            font-size: 18px; margin: 10px; color: #c084fc; 
+            text-shadow: 0 0 10px #7e22ce; padding: 10px;
+            background: rgba(126,34,206,0.1); border-radius: 8px;
+            min-height: 24px;
+        }
+        #fileInput {
+            padding: 10px;
+            margin: 10px;
+            background: #1e1b4b;
+            color: white;
+            border: 2px solid #7e22ce;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        #fileInput:hover {
+            background: #312e81;
+        }
+        h3 {
+            margin: 0 0 15px 0;
+            color: #d8b4fe;
+            text-shadow: 0 0 15px #c084fc;
+        }
+        .hud-thumb {
+            width: 60px; height: 80px; margin: 5px;
+            object-fit: cover; border: 2px solid #7e22ce;
+            border-radius: 8px; cursor: pointer; 
+            background: #12021a; 
+            display: inline-block;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #c084fc;
+            font-size: 24px;
+            z-index: 10000;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <!-- البار الرئيسي (يظهر قبل وبعد الـ VR) -->
+    <div id="loading">جاري التحميل...</div>
+    
     <div id="ui">
-        <h3>معرض الصور والفيديوهات (Black & Purple)</h3>
+        <h3>🖼️ معرض الصور والفيديوهات (Black & Purple) 🎬</h3>
         <input type="file" id="fileInput" accept="image/*,video/*" multiple>
         <div id="thumbnails"></div>
-        <div id="status">ارفع ملفاتك ثم اضغط عليها لإضافتها في الغرفة</div>
-        <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
-        <button onclick="clearAll()" class="delete">مسح الكل</button>
+        <div id="status">⏳ ارفع ملفاتك ثم اضغط عليها لإضافتها في الغرفة</div>
+        <button onclick="enterAR()">🚀 دخول AR</button>
+        <button onclick="clearAll()" class="delete">🗑️ مسح الكل</button>
+        <button onclick="resetPositions()" class="reset">🔄 إعادة ترتيب</button>
     </div>
 
-    <a-scene embedded renderer="alpha: true" background="transparent: true">
-        <a-assets id="assets"></a-assets>
+    <a-scene embedded 
+             renderer="antialias: true; alpha: true; logarithmicDepthBuffer: true"
+             background="transparent: true"
+             loading-screen="enabled: false">
 
-        <a-light type="ambient" intensity="0.75" color="#d8b4fe"></a-light>
-        <a-light type="directional" position="-4 6 -4" intensity="0.6" color="#c084fc"></a-light>
+        <a-assets id="assets" timeout="10000">
+            <!-- Assets will be added dynamically -->
+        </a-assets>
 
-        <!-- Controllers مع ليزر بنفسجي نيون -->
+        <!-- Lighting -->
+        <a-light type="ambient" intensity="0.8" color="#d8b4fe"></a-light>
+        <a-light type="directional" 
+                 position="-4 6 -4" 
+                 intensity="1.2" 
+                 color="#c084fc"
+                 cast-shadow="true"></a-light>
+        <a-light type="hemisphere" 
+                 sky-color="#1e1b4b" 
+                 ground-color="#050014" 
+                 intensity="0.6"></a-light>
+
+        <!-- Floor -->
+        <a-plane position="0 0 0" 
+                 rotation="-90 0 0" 
+                 width="20" 
+                 height="20"
+                 material="color: #0f0a23; metalness: 0.2; roughness: 0.8"
+                 shadow="receive: true"></a-plane>
+
+        <!-- Controllers with Laser -->
         <a-entity id="leftHand" 
-                  hand-controls="hand: left" 
-                  laser-controls="hand: left" 
-                  raycaster="objects: .clickable; far: 15; showLine: true; lineColor: #c084fc; lineOpacity: 1; lineWidth: 10"></a-entity>
+                  hand-controls="hand: left"
+                  laser-controls="hand: left"
+                  raycaster="objects: .clickable, .interactive; far: 10; showLine: true; lineColor: #c084fc; lineOpacity: 0.8;"></a-entity>
         <a-entity id="rightHand" 
-                  hand-controls="hand: right" 
-                  laser-controls="hand: right" 
-                  raycaster="objects: .clickable; far: 15; showLine: true; lineColor: #c084fc; lineOpacity: 1; lineWidth: 10"></a-entity>
+                  hand-controls="hand: right"
+                  laser-controls="hand: right"
+                  raycaster="objects: .clickable, .interactive; far: 10; showLine: true; lineColor: #c084fc; lineOpacity: 0.8;"></a-entity>
 
-        <!-- HUD البار اللي يتبع الكاميرا داخل الـ VR -->
-        <a-entity id="hud" position="0 -0.55 -0.95" rotation="-15 0 0" scale="0.95 0.95 0.95">
-            <a-plane position="0 0 0" width="5" height="1.8" material="color: #0f001f; opacity: 0.96; transparent: true; shader: flat"></a-plane>
-            
-            <a-entity id="hud-thumbnails" position="0 0.25 0.1"></a-entity>
-            
-            <a-text value="المعرض - اضغط بالليزر للإضافة" 
-                    position="0 -0.65 0.1" 
-                    color="#c084fc" 
-                    align="center" 
-                    width="4.5" 
-                    shadow="color: #7e22ce; offset: 0.03 0.03 0.03"></a-text>
+        <!-- Camera -->
+        <a-entity id="cameraRig" position="0 1.6 0">
+            <a-camera id="camera" 
+                      position="0 0 0"
+                      wasd-controls="enabled: false"
+                      look-controls="enabled: true">
+                
+                <!-- HUD in VR -->
+                <a-entity id="hud" position="0 -0.4 -0.8" scale="0.9 0.9 0.9">
+                    <a-plane position="0 0 0" 
+                             width="4.5" 
+                             height="1.4" 
+                             material="color: #0f001f; opacity: 0.9; transparent: true; side: double">
+                    </a-plane>
+                    
+                    <a-entity id="hud-thumbnails" 
+                              position="0 0.2 0.01"
+                              layout="type: line; margin: 0.1">
+                    </a-entity>
+                    
+                    <a-text value="🎨 المع Gallery - اضغط بالليزر للإضافة 🎯" 
+                            position="0 -0.5 0.01" 
+                            color="#c084fc" 
+                            align="center" 
+                            width="4"
+                            font="https://cdn.aframe.io/fonts/MoSans-Regular-AR.json"
+                            shadow="color: #7e22ce; offset: 0.02 0.02 0.02">
+                    </a-text>
+                </a-entity>
+            </a-camera>
         </a-entity>
 
-        <a-camera position="0 1.6 0"></a-camera>
+        <!-- Navigation Instructions -->
+        <a-entity position="0 2.5 -3" 
+                  geometry="primitive: plane; width: 3; height: 1.5"
+                  material="color: #1e1b4b; opacity: 0.8; transparent: true; side: double"
+                  text="value: 🎮 التحكم:\nحرك بالمسك\nكبر/صغر بالثومبستك\nاحذف بالزر X; 
+                        align: center; 
+                        color: #d8b4fe; 
+                        width: 3;
+                        font: https://cdn.aframe.io/fonts/MoSans-Regular-AR.json"
+                  always-face-camera></a-entity>
+
     </a-scene>
 
     <script>
         const scene = document.querySelector('a-scene');
+        const assets = document.getElementById('assets');
         const thumbnailsDiv = document.getElementById('thumbnails');
         const hudThumbnails = document.getElementById('hud-thumbnails');
         const status = document.getElementById('status');
+        const loading = document.getElementById('loading');
+        
         let placementCount = 0;
+        let selectedEntity = null;
+        let mediaEntities = [];
 
+        // Register Always Face Camera Component
         AFRAME.registerComponent('always-face-camera', {
             tick: function () {
-                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
-            }
-        });
-
-        AFRAME.registerComponent('media-controls', {
-            init: function () {
-                this.moving = false;
-                this.scaling = false;
-
-                const btnGroup = document.createElement('a-entity');
-                btnGroup.setAttribute('position', '0 1.6 0.1');
-
-                // Move
-                const move = document.createElement('a-plane');
-                move.setAttribute('position', '-1.4 0 0');
-                move.setAttribute('width', '1'); move.setAttribute('height', '0.45');
-                move.setAttribute('material', 'color: #6d28d9; opacity: 0.9; transparent: true');
-                move.setAttribute('text', 'value: Move; align: center; color: white; width: 3');
-                move.classList.add('clickable');
-                move.addEventListener('click', () => this.moving = !this.moving);
-                btnGroup.appendChild(move);
-
-                // Scale
-                const scale = document.createElement('a-plane');
-                scale.setAttribute('position', '-0.4 0 0');
-                scale.setAttribute('width', '1'); scale.setAttribute('height', '0.45');
-                scale.setAttribute('material', 'color: #a855f7; opacity: 0.9; transparent: true');
-                scale.setAttribute('text', 'value: Scale; align: center; color: white; width: 3');
-                scale.classList.add('clickable');
-                scale.addEventListener('click', () => {
-                    this.scaling = !this.scaling;
-                    status.textContent = this.scaling ? 'التكبير مفعل - thumbstick رأسي' : 'التكبير معطل';
-                });
-                btnGroup.appendChild(scale);
-
-                // Rotate
-                const rotate = document.createElement('a-plane');
-                rotate.setAttribute('position', '0.6 0 0');
-                rotate.setAttribute('width', '1'); rotate.setAttribute('height', '0.45');
-                rotate.setAttribute('material', 'color: #9333ea; opacity: 0.9; transparent: true');
-                rotate.setAttribute('text', 'value: Rotate; align: center; color: white; width: 3');
-                rotate.classList.add('clickable');
-                rotate.addEventListener('click', () => status.textContent = 'التدوير مفعل - thumbstick أفقي');
-                btnGroup.appendChild(rotate);
-
-                // Delete
-                const del = document.createElement('a-plane');
-                del.setAttribute('position', '1.6 0 0');
-                del.setAttribute('width', '1'); del.setAttribute('height', '0.45');
-                del.setAttribute('material', 'color: #c026d3; opacity: 0.9; transparent: true');
-                del.setAttribute('text', 'value: Delete; align: center; color: white; width: 3');
-                del.classList.add('clickable');
-                del.addEventListener('click', () => this.el.parentNode.removeChild(this.el));
-                btnGroup.appendChild(del);
-
-                this.el.appendChild(btnGroup);
-            },
-            tick: function (t, dt) {
-                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
-
-                if (this.moving) {
-                    const hands = document.querySelectorAll('[hand-controls]');
-                    hands.forEach(hand => {
-                        if (hand.components['hand-controls'].controller) {
-                            const pos = hand.object3D.getWorldPosition(new THREE.Vector3());
-                            this.el.object3D.position.copy(pos);
-                            this.el.object3D.position.y -= 0.5;
-                        }
-                    });
+                const camera = document.querySelector('[camera]');
+                if (camera) {
+                    const cameraPos = camera.object3D.getWorldPosition(new THREE.Vector3());
+                    this.el.object3D.lookAt(cameraPos);
                 }
             }
         });
 
+        // Enhanced Media Controls Component
+        AFRAME.registerComponent('media-controls', {
+            init: function () {
+                this.isSelected = false;
+                this.isGrabbed = false;
+                this.isResizing = false;
+                this.isRotating = false;
+                
+                const el = this.el;
+                
+                // Add selection highlight
+                el.setAttribute('material', 'shader: flat; transparent: true; opacity: 1');
+                
+                // Make it interactive
+                el.classList.add('interactive');
+                
+                // Add border for selected state
+                this.border = document.createElement('a-entity');
+                this.border.setAttribute('geometry', 'primitive: box; width: 1.05; height: 1.05; depth: 0.01');
+                this.border.setAttribute('material', 'color: #c084fc; transparent: true; opacity: 0; side: front');
+                this.border.setAttribute('position', '0 0 0.01');
+                el.appendChild(this.border);
+                
+                // Add control instructions
+                this.instructions = document.createElement('a-entity');
+                this.instructions.setAttribute('position', '0 1.2 0');
+                this.instructions.setAttribute('text', {
+                    value: '🎮 المسك: تريقر\n🔄 تدوير: X + حركة\n📏 تكبير: Y + ثومبستك\n❌ حذف: B',
+                    align: 'center',
+                    color: '#d8b4fe',
+                    width: 2,
+                    font: 'https://cdn.aframe.io/fonts/MoSans-Regular-AR.json'
+                });
+                this.instructions.setAttribute('visible', 'false');
+                el.appendChild(this.instructions);
+                
+                // Event listeners
+                el.addEventListener('click', (evt) => {
+                    if (selectedEntity && selectedEntity !== el) {
+                        selectedEntity.components['media-controls'].deselect();
+                    }
+                    this.select();
+                });
+                
+                el.addEventListener('grab-start', (evt) => {
+                    this.grab(evt.detail.hand);
+                });
+                
+                el.addEventListener('grab-end', (evt) => {
+                    this.release();
+                });
+                
+                // Controller events
+                scene.addEventListener('buttondown', (evt) => {
+                    if (this.isSelected) {
+                        const button = evt.detail.id;
+                        const hand = evt.detail.hand;
+                        
+                        switch(button) {
+                            case 'xbutton':
+                                this.isRotating = true;
+                                status.textContent = '🔄 وضع التدوير مفعل';
+                                break;
+                            case 'ybutton':
+                                this.isResizing = true;
+                                status.textContent = '📏 وضع التكبير/التصغير مفعل';
+                                break;
+                            case 'bbutton':
+                                this.delete();
+                                break;
+                        }
+                    }
+                });
+                
+                scene.addEventListener('buttonup', (evt) => {
+                    const button = evt.detail.id;
+                    if (button === 'xbutton') this.isRotating = false;
+                    if (button === 'ybutton') this.isResizing = false;
+                });
+                
+                scene.addEventListener('thumbstickmoved', (evt) => {
+                    if (this.isSelected && !this.isGrabbed) {
+                        const axis = evt.detail.axis;
+                        
+                        if (this.isResizing) {
+                            // Scale with thumbstick vertical movement
+                            const currentScale = el.object3D.scale.x;
+                            const newScale = Math.max(0.5, Math.min(3, currentScale + axis.y * 0.1));
+                            el.object3D.scale.set(newScale, newScale, newScale);
+                            status.textContent = `📏 الحجم: ${newScale.toFixed(2)}x`;
+                        }
+                        else if (this.isRotating) {
+                            // Rotate with thumbstick horizontal movement
+                            const currentRotation = el.object3D.rotation.y;
+                            el.object3D.rotation.y = currentRotation + axis.x * 0.1;
+                        }
+                    }
+                });
+            },
+            
+            select: function() {
+                this.isSelected = true;
+                selectedEntity = this.el;
+                this.border.setAttribute('material', 'opacity', 0.5);
+                this.instructions.setAttribute('visible', 'true');
+                status.textContent = '✅ العنصر مختار - استخدم أزرار اليد للتحكم';
+            },
+            
+            deselect: function() {
+                this.isSelected = false;
+                this.border.setAttribute('material', 'opacity', 0);
+                this.instructions.setAttribute('visible', 'false');
+            },
+            
+            grab: function(hand) {
+                this.isGrabbed = true;
+                this.el.setAttribute('animation', {
+                    property: 'position',
+                    to: hand.object3D.position.x + ' ' + 
+                        (hand.object3D.position.y - 0.2) + ' ' + 
+                        hand.object3D.position.z,
+                    dur: 100,
+                    easing: 'easeOutQuad'
+                });
+                status.textContent = '🖐️ العنصر ممسوك - حرره للإفلات';
+            },
+            
+            release: function() {
+                this.isGrabbed = false;
+                status.textContent = '✅ العنصر تم تحريره';
+            },
+            
+            delete: function() {
+                const index = mediaEntities.indexOf(this.el);
+                if (index > -1) {
+                    mediaEntities.splice(index, 1);
+                }
+                this.el.parentNode.removeChild(this.el);
+                status.textContent = '🗑️ العنصر تم حذفه';
+            },
+            
+            tick: function() {
+                // Keep instructions facing camera
+                if (this.instructions && this.instructions.object3D) {
+                    const camera = document.querySelector('[camera]');
+                    if (camera) {
+                        const cameraPos = camera.object3D.getWorldPosition(new THREE.Vector3());
+                        this.instructions.object3D.lookAt(cameraPos);
+                    }
+                }
+            }
+        });
+
+        // Function to enter AR
+        function enterAR() {
+            if (scene.hasLoaded) {
+                scene.enterAR();
+                status.textContent = '🚀 تم الدخول إلى وضع AR - ارفع هاتفك للبدء';
+            } else {
+                scene.addEventListener('loaded', () => {
+                    scene.enterAR();
+                    status.textContent = '🚀 تم الدخول إلى وضع AR - ارفع هاتفك للبدء';
+                });
+            }
+        }
+
+        // Function to create and add thumbnail
         function addThumbnail(file) {
             const url = URL.createObjectURL(file);
             const isVideo = file.type.startsWith('video/');
+            const fileName = file.name || 'media';
+            
+            loading.style.display = 'block';
+            status.textContent = `⏳ جاري تحميل ${fileName}...`;
+
             const thumb = document.createElement(isVideo ? 'video' : 'img');
             thumb.src = url;
             thumb.className = 'thumb clickable';
+            thumb.dataset.url = url;
+            thumb.dataset.type = isVideo ? 'video' : 'image';
+            thumb.dataset.name = fileName;
+            
             if (isVideo) {
                 thumb.muted = true;
                 thumb.autoplay = true;
                 thumb.loop = true;
-                thumb.playsinline = true;
-                thumb.preload = 'auto';
+                thumb.playsInline = true;
+                thumb.preload = 'metadata';
+                thumb.addEventListener('loadeddata', () => {
+                    loading.style.display = 'none';
+                    status.textContent = `✅ ${fileName} جاهز للإضافة`;
+                });
+                thumb.addEventListener('error', (e) => {
+                    loading.style.display = 'none';
+                    status.textContent = `❌ خطأ في تحميل الفيديو: ${fileName}`;
+                    console.error('Video load error:', e);
+                });
+            } else {
+                thumb.onload = () => {
+                    loading.style.display = 'none';
+                    status.textContent = `✅ ${fileName} جاهز للإضافة`;
+                };
+                thumb.onerror = () => {
+                    loading.style.display = 'none';
+                    status.textContent = `❌ خطأ في تحميل الصورة: ${fileName}`;
+                };
             }
 
-            thumb.onclick = () => addEntity(url, isVideo);
+            thumb.onclick = () => {
+                if (thumb.dataset.url) {
+                    addEntity(thumb.dataset.url, isVideo, fileName);
+                }
+            };
 
-            // نسخة للـ HUD داخل الـ scene
-            const hudThumb = thumb.cloneNode();
-            document.getElementById('hud-thumbnails').appendChild(hudThumb);
+            // Add to main thumbnails
+            thumbnailsDiv.appendChild(thumb);
 
-            document.getElementById('thumbnails').appendChild(thumb);
+            // Add to HUD thumbnails (smaller version)
+            const hudThumb = thumb.cloneNode(true);
+            hudThumb.className = 'hud-thumb';
+            hudThumb.style.width = '60px';
+            hudThumb.style.height = '80px';
+            hudThumbnails.appendChild(hudThumb);
         }
 
-        function addEntity(url, isVideo) {
+        // Function to add media entity to scene
+        function addEntity(url, isVideo, fileName) {
+            loading.style.display = 'block';
+            status.textContent = `🎨 جاري إضافة ${fileName} إلى المشهد...`;
+
+            // Create asset first
+            const assetId = `media-${Date.now()}`;
+            let assetElement;
+            
+            if (isVideo) {
+                assetElement = document.createElement('video');
+                assetElement.setAttribute('id', assetId);
+                assetElement.setAttribute('src', url);
+                assetElement.setAttribute('autoplay', 'true');
+                assetElement.setAttribute('loop', 'true');
+                assetElement.setAttribute('muted', 'true');
+                assetElement.setAttribute('playsInline', 'true');
+                assetElement.setAttribute('preload', 'auto');
+                assetElement.setAttribute('webkit-playsinline', 'true');
+                assetElement.crossOrigin = 'anonymous';
+            } else {
+                assetElement = document.createElement('img');
+                assetElement.setAttribute('id', assetId);
+                assetElement.setAttribute('src', url);
+                assetElement.crossOrigin = 'anonymous';
+            }
+            
+            assets.appendChild(assetElement);
+
+            // Create entity
             const entity = document.createElement('a-entity');
+            entity.classList.add('media-entity', 'interactive');
+            mediaEntities.push(entity);
 
-            const angle = placementCount * 45;
-            const radius = 3.5;
-            const x = radius * Math.sin(angle * Math.PI / 180);
-            const z = -radius * Math.cos(angle * Math.PI / 180);
-            entity.setAttribute('position', `${x} 1.4 ${z}`);
+            // Calculate position in a circle
+            const angle = placementCount * (360 / Math.max(mediaEntities.length, 1));
+            const radius = 2.5 + (mediaEntities.length * 0.3);
+            const x = Math.sin(angle * Math.PI / 180) * radius;
+            const z = Math.cos(angle * Math.PI / 180) * radius;
+            
+            entity.setAttribute('position', `${x} 1.5 ${z}`);
+            entity.setAttribute('rotation', `0 ${angle + 180} 0`);
+            entity.setAttribute('scale', '1 1 1');
+            entity.setAttribute('animation__enter', {
+                property: 'scale',
+                from: '0.1 0.1 0.1',
+                to: '1 1 1',
+                dur: 500,
+                easing: 'easeOutElastic'
+            });
 
-            const width = isVideo ? 1.9 : 1.7;
-            const height = isVideo ? 2.6 : 2.3;
+            // Create media content
+            let mediaContent;
+            if (isVideo) {
+                mediaContent = document.createElement('a-video');
+                mediaContent.setAttribute('src', `#${assetId}`);
+                mediaContent.setAttribute('width', '1.8');
+                mediaContent.setAttribute('height', '1.2');
+                mediaContent.setAttribute('autoplay', 'true');
+                mediaContent.setAttribute('loop', 'true');
+                mediaContent.setAttribute('muted', 'true');
+                mediaContent.setAttribute('playsinline', 'true');
+            } else {
+                mediaContent = document.createElement('a-image');
+                mediaContent.setAttribute('src', `#${assetId}`);
+                mediaContent.setAttribute('width', '1.6');
+                mediaContent.setAttribute('height', '1.6');
+            }
+            
+            mediaContent.setAttribute('material', 'shader: flat; transparent: false; side: double');
+            mediaContent.setAttribute('shadow', 'cast: true; receive: true');
 
-            const content = isVideo
-                ? `<a-video src="${url}" width="${width}" height="${height}" loop="true" autoplay="true" playsinline="true" muted="true" crossorigin="anonymous" preload="auto"></a-video>`
-                : `<a-plane src="${url}" width="${width}" height="${height}" transparent="true" material="shader: flat; side: double; transparent: true; opacity: 1"></a-plane>`;
-
-            entity.innerHTML = content;
-            entity.setAttribute('always-face-camera', '');
+            // Add frame
+            const frame = document.createElement('a-entity');
+            frame.setAttribute('geometry', 'primitive: box; width: 1.05; height: 1.05; depth: 0.1');
+            frame.setAttribute('material', 'color: #7e22ce; metalness: 0.5; roughness: 0.5');
+            frame.setAttribute('position', '0 0 -0.06');
+            
+            entity.appendChild(frame);
+            entity.appendChild(mediaContent);
+            
+            // Add controls component
             entity.setAttribute('media-controls', '');
+            entity.setAttribute('always-face-camera', '');
+            
+            // Add hover effect
+            entity.setAttribute('event-set__mouseenter', 'scale: 1.05 1.05 1.05');
+            entity.setAttribute('event-set__mouseleave', 'scale: 1 1 1');
+            
+            // Make it grabbable
+            entity.setAttribute('grabbable', '');
+            entity.setAttribute('draggable', '');
 
+            // Add to scene
             scene.appendChild(entity);
             placementCount++;
 
-            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} - الأزرار فوقها`;
+            // Hide loading and show success
+            setTimeout(() => {
+                loading.style.display = 'none';
+                status.textContent = `✅ ${fileName} تمت إضافته إلى المشهد!`;
+                
+                // Play video if it's a video
+                if (isVideo) {
+                    const video = document.querySelector(`#${assetId}`);
+                    if (video && video.play) {
+                        video.play().catch(e => {
+                            console.log('Video autoplay prevented, will play on interaction');
+                            // Video will play on first user interaction
+                        });
+                    }
+                }
+            }, 800);
         }
 
+        // File input handler
         document.getElementById('fileInput').addEventListener('change', (e) => {
+            if (e.target.files.length === 0) return;
+            
+            status.textContent = `📂 جاري تحميل ${e.target.files.length} ملف...`;
+            
             for (const file of e.target.files) {
+                if (file.size > 50 * 1024 * 1024) { // 50MB limit
+                    alert(`الملف ${file.name} كبير جداً (الحد الأقصى 50MB)`);
+                    continue;
+                }
                 addThumbnail(file);
             }
+            
+            e.target.value = ''; // Reset input
         });
 
+        // Clear all function
         function clearAll() {
-            document.getElementById('thumbnails').innerHTML = '';
-            document.getElementById('hud-thumbnails').innerHTML = '';
-            while (scene.firstChild) scene.removeChild(scene.firstChild);
+            if (!confirm('هل أنت متأكد من مسح كل المحتويات؟')) return;
+            
+            // Clear thumbnails
+            thumbnailsDiv.innerHTML = '';
+            hudThumbnails.innerHTML = '';
+            
+            // Clear media entities
+            const mediaEntities = document.querySelectorAll('.media-entity');
+            mediaEntities.forEach(entity => {
+                if (entity.parentNode) {
+                    entity.parentNode.removeChild(entity);
+                }
+            });
+            
+            // Clear assets
+            assets.innerHTML = '';
+            
             placementCount = 0;
-            status.textContent = 'تم المسح الكامل';
+            mediaEntities.length = 0;
+            selectedEntity = null;
+            
+            status.textContent = '🗑️ تم مسح جميع المحتويات';
         }
+
+        // Reset positions function
+        function resetPositions() {
+            const entities = document.querySelectorAll('.media-entity');
+            entities.forEach((entity, index) => {
+                const angle = index * (360 / entities.length);
+                const radius = 2.5 + (entities.length * 0.3);
+                const x = Math.sin(angle * Math.PI / 180) * radius;
+                const z = Math.cos(angle * Math.PI / 180) * radius;
+                
+                entity.setAttribute('animation', {
+                    property: 'position',
+                    to: `${x} 1.5 ${z}`,
+                    dur: 1000,
+                    easing: 'easeInOutQuad'
+                });
+                
+                entity.setAttribute('animation__rotate', {
+                    property: 'rotation',
+                    to: `0 ${angle + 180} 0`,
+                    dur: 1000,
+                    easing: 'easeInOutQuad'
+                });
+            });
+            
+            status.textContent = '🔄 تمت إعادة ترتيب جميع العناصر';
+        }
+
+        // Initialize scene
+        scene.addEventListener('loaded', () => {
+            status.textContent = '✅ المشهد جاهز! ارفع ملفاتك للبدء';
+            console.log('Scene loaded successfully');
+        });
+
+        // Handle video play on first interaction
+        document.addEventListener('click', () => {
+            const videos = document.querySelectorAll('video');
+            videos.forEach(video => {
+                if (video.paused && video.readyState >= 2) {
+                    video.play().catch(e => console.log('Video play prevented'));
+                }
+            });
+        });
+
+        // Handle AR mode
+        scene.addEventListener('enter-vr', () => {
+            status.textContent = '🎮 أنت الآن في وضع VR/AR - استخدم يديك للتحكم';
+        });
+
+        scene.addEventListener('exit-vr', () => {
+            status.textContent = '🏠 خرجت من وضع VR/AR';
+        });
+
+        // Initialize
+        window.onload = () => {
+            status.textContent = '👆 ارفع صوراً أو فيديوهات للبدء';
+        };
     </script>
 </body>
 </html>
