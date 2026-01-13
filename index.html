@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Cutout - Quest 2 (دائرة حولك)</title>
+    <title>AI AR Cutout - Quest 2 (دائرة حولك مع فيديو شغال)</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
     <style>
@@ -20,14 +20,16 @@
         <div id="fileInputs">
             <input type="file" class="file-input" accept="image/*,video/*" multiple>
         </div>
-        <button onclick="addFileInput()">+ إضافة ملفات أكثر</button>
-        <button onclick="processAndPlace()">معالجة ووضع في دائرة</button>
+        <button onclick="addFileInput()">+ إضافة حقل لملفات أكثر</button>
+        <button onclick="processAndPlace()">معالجة ووضع الملفات</button>
         <button onclick="clearAll()" style="background:#f33;">مسح الكل</button>
         <button onclick="document.querySelector('a-scene').enterAR()">دخول AR</button>
-        <div id="status">جاهز... (الصور محوطة حولك على شكل دائرة، موجهة عليك دائمًا)</div>
+        <div id="status">جاهز... (الفيديوهات شغالة تلقائيًا مع loop)</div>
     </div>
 
     <a-scene embedded renderer="alpha: true" background="transparent: true">
+        <a-assets id="assets"></a-assets>  <!-- لتحميل الملفات مسبقًا -->
+
         <a-light type="ambient" intensity="0.9"></a-light>
         <a-light type="directional" position="-2 3 -1" intensity="0.7"></a-light>
 
@@ -36,6 +38,7 @@
 
     <script>
         const scene = document.querySelector('a-scene');
+        const assets = document.getElementById('assets');
         const status = document.getElementById('status');
         const fileInputsDiv = document.getElementById('fileInputs');
         let placementCount = 0;
@@ -94,9 +97,17 @@
             const width = isVideo ? 1.8 : 1.6;
             const height = isVideo ? 2.4 : 2.2;
 
+            // أضف للـ assets للتحميل مسبقًا
+            const id = `media${placementCount}`;
+            const assetItem = document.createElement('a-asset-item');
+            assetItem.setAttribute('id', id);
+            assetItem.setAttribute('src', url);
+            assetItem.setAttribute('preload', 'auto');
+            assets.appendChild(assetItem);
+
             let content = '';
             if (isVideo) {
-                content = `<a-video src="${url}" width="${width}" height="${height}" loop="true" autoplay="true" playsinline="true"></a-video>`;
+                content = `<a-video src="#${id}" width="${width}" height="${height}" loop="true" autoplay="true" playsinline="true" muted="true"></a-video>`;
             } else {
                 content = `<a-plane src="${url}" width="${width}" height="${height}" transparent="true" material="side: double; shader: flat"></a-plane>`;
             }
@@ -109,7 +120,7 @@
             scene.appendChild(entity);
             placementCount++;
 
-            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} رقم ${placementCount} (في الدائرة حولك)`;
+            status.textContent = `تم إضافة ${isVideo ? 'فيديو' : 'صورة'} رقم ${placementCount} (الفيديو شغال مع loop)`;
         }
 
         async function processAndPlace() {
