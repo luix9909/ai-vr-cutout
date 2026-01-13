@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI AR Gallery - Quest 2 (Black & Purple)</title>
+    <title>AI AR Gallery Pro - Black & Purple</title>
     <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
     <style>
-        body { margin: 0; direction: rtl; background: #0a0015; font-family: Arial; color: #d8b4fe; }
+        body { margin: 0; direction: rtl; background: #050014; font-family: Arial; color: #d8b4fe; }
         #ui {
-            position: absolute; bottom: 6%; left: 50%; transform: translateX(-50%);
-            background: rgba(30,10,50,0.94); color: #c084fc;
+            position: fixed; bottom: 5%; left: 50%; transform: translateX(-50%);
+            background: rgba(20,10,40,0.95); color: #c084fc;
             padding: 15px 25px; border-radius: 18px;
-            border: 2.5px solid #7e22ce; box-shadow: 0 0 40px rgba(126,34,206,0.6);
+            border: 3px solid #7e22ce; box-shadow: 0 0 40px rgba(126,34,206,0.65);
             pointer-events: auto; max-width: 90%; overflow-x: auto; white-space: nowrap;
             text-align: center; backdrop-filter: blur(10px);
         }
@@ -19,49 +19,49 @@
             width: 110px; height: 150px; margin: 8px;
             object-fit: cover; border: 3px solid #7e22ce;
             border-radius: 12px; cursor: pointer; display: inline-block;
-            background: #12021a; box-shadow: 0 0 18px rgba(126,34,206,0.5);
+            background: #12021a; box-shadow: 0 0 15px rgba(126,34,206,0.5);
         }
-        button {
-            padding: 10px 18px; margin: 6px; font-size: 15px;
+        .control-btn {
+            padding: 10px 18px; margin: 5px; font-size: 14px;
             background: #7e22ce; color: white; border: none;
-            border-radius: 8px; cursor: pointer; font-weight: bold;
-            box-shadow: 0 0 12px rgba(126,34,206,0.7);
+            border-radius: 8px; cursor: pointer; min-width: 80px;
+            box-shadow: 0 0 10px rgba(126,34,206,0.6);
         }
-        button.delete { background: #c026d3; }
-        button.rotate { background: #a855f7; }
-        button.reset { background: #6b21a8; }
-        #status { font-size: 17px; margin: 8px; color: #c084fc; text-shadow: 0 0 10px #7e22ce; }
+        .control-btn.delete { background: #c026d3; }
+        .control-btn.rotate { background: #a855f7; }
+        .control-btn.reset { background: #6b21a8; }
+        #status { font-size: 17px; margin: 8px; color: #c084fc; text-shadow: 0 0 8px #7e22ce; }
     </style>
 </head>
 <body>
     <a-scene embedded renderer="alpha: true" background="transparent: true">
         <a-assets id="assets"></a-assets>
 
-        <a-light type="ambient" intensity="0.7" color="#d8b4fe"></a-light>
-        <a-light type="directional" position="-4 6 -4" intensity="0.5" color="#c084fc"></a-light>
+        <a-light type="ambient" intensity="0.75" color="#d8b4fe"></a-light>
+        <a-light type="directional" position="-4 6 -4" intensity="0.6" color="#c084fc"></a-light>
 
-        <!-- Controllers مع ليزر بنفسجي نيون -->
+        <!-- Controllers مع ليزر بنفسجي نيون قوي -->
         <a-entity id="leftHand" 
                   hand-controls="hand: left" 
                   laser-controls="hand: left" 
-                  raycaster="objects: .clickable; far: 15; showLine: true; lineColor: #c084fc; lineOpacity: 1; lineWidth: 8"></a-entity>
+                  raycaster="objects: .clickable; far: 15; showLine: true; lineColor: #c084fc; lineOpacity: 1; lineWidth: 9"></a-entity>
         <a-entity id="rightHand" 
                   hand-controls="hand: right" 
                   laser-controls="hand: right" 
-                  raycaster="objects: .clickable; far: 15; showLine: true; lineColor: #c084fc; lineOpacity: 1; lineWidth: 8"></a-entity>
+                  raycaster="objects: .clickable; far: 15; showLine: true; lineColor: #c084fc; lineOpacity: 1; lineWidth: 9"></a-entity>
 
         <!-- HUD البار اللي يتبع الكاميرا -->
-        <a-entity id="hud" position="0 -0.5 -0.9" rotation="-14 0 0" scale="0.9 0.9 0.9">
-            <a-plane position="0 0 0" width="4.5" height="1.6" material="color: #0f001f; opacity: 0.94; transparent: true; shader: flat"></a-plane>
+        <a-entity id="hud" position="0 -0.5 -0.9" rotation="-12 0 0" scale="0.95 0.95 0.95">
+            <a-plane position="0 0 0" width="4.8" height="1.7" material="color: #0f001f; opacity: 0.95; transparent: true; shader: flat"></a-plane>
             
-            <a-entity id="hud-thumbnails" position="0 0.2 0.08"></a-entity>
+            <a-entity id="hud-thumbnails" position="0 0.25 0.1"></a-entity>
             
             <a-text value="اضغط بالليزر على أي عنصر لإضافته" 
-                    position="0 -0.55 0.08" 
+                    position="0 -0.6 0.1" 
                     color="#c084fc" 
                     align="center" 
-                    width="3.8" 
-                    shadow="color: #7e22ce; offset: 0.02 0.02 0.02"></a-text>
+                    width="4" 
+                    shadow="color: #7e22ce; offset: 0.03 0.03 0.03"></a-text>
         </a-entity>
 
         <a-camera position="0 1.6 0"></a-camera>
@@ -82,16 +82,17 @@
         AFRAME.registerComponent('media-controls', {
             init: function () {
                 this.moving = false;
+                this.scaling = false;
 
                 const btnGroup = document.createElement('a-entity');
-                btnGroup.setAttribute('position', '0 1.5 0');
+                btnGroup.setAttribute('position', '0 1.6 0.1');
 
                 // Move
                 const move = document.createElement('a-plane');
-                move.setAttribute('position', '-1.2 0 0');
-                move.setAttribute('width', '0.9'); move.setAttribute('height', '0.4');
-                move.setAttribute('material', 'color: #6d28d9; opacity: 0.9; transparent: true');
-                move.setAttribute('text', 'value: Move; align: center; color: white; width: 2.5');
+                move.setAttribute('position', '-1.3 0 0');
+                move.setAttribute('width', '1'); move.setAttribute('height', '0.45');
+                move.setAttribute('material', 'color: #6d28d9; opacity: 0.92; transparent: true');
+                move.setAttribute('text', 'value: Move; align: center; color: white; width: 3');
                 move.classList.add('clickable');
                 move.addEventListener('click', () => this.moving = !this.moving);
                 btnGroup.appendChild(move);
@@ -99,32 +100,52 @@
                 // Scale
                 const scale = document.createElement('a-plane');
                 scale.setAttribute('position', '-0.3 0 0');
-                scale.setAttribute('width', '0.9'); scale.setAttribute('height', '0.4');
-                scale.setAttribute('material', 'color: #a855f7; opacity: 0.9; transparent: true');
-                scale.setAttribute('text', 'value: Scale; align: center; color: white; width: 2.5');
+                scale.setAttribute('width', '1'); scale.setAttribute('height', '0.45');
+                scale.setAttribute('material', 'color: #a855f7; opacity: 0.92; transparent: true');
+                scale.setAttribute('text', 'value: Scale; align: center; color: white; width: 3');
                 scale.classList.add('clickable');
+                scale.addEventListener('click', () => {
+                    this.scaling = !this.scaling;
+                    status.textContent = this.scaling ? 'التكبير/التصغير مفعل - استخدم thumbstick' : 'التكبير معطل';
+                });
                 btnGroup.appendChild(scale);
 
                 // Rotate
                 const rotate = document.createElement('a-plane');
-                rotate.setAttribute('position', '0.6 0 0');
-                rotate.setAttribute('width', '0.9'); rotate.setAttribute('height', '0.4');
-                rotate.setAttribute('material', 'color: #9333ea; opacity: 0.9; transparent: true');
-                rotate.setAttribute('text', 'value: Rotate; align: center; color: white; width: 2.5');
+                rotate.setAttribute('position', '0.7 0 0');
+                rotate.setAttribute('width', '1'); rotate.setAttribute('height', '0.45');
+                rotate.setAttribute('material', 'color: #9333ea; opacity: 0.92; transparent: true');
+                rotate.setAttribute('text', 'value: Rotate; align: center; color: white; width: 3');
                 rotate.classList.add('clickable');
+                rotate.addEventListener('click', () => status.textContent = 'التدوير مفعل - thumbstick أفقي');
                 btnGroup.appendChild(rotate);
 
                 // Delete
                 const del = document.createElement('a-plane');
-                del.setAttribute('position', '1.5 0 0');
-                del.setAttribute('width', '0.9'); del.setAttribute('height', '0.4');
-                del.setAttribute('material', 'color: #c026d3; opacity: 0.9; transparent: true');
-                del.setAttribute('text', 'value: Delete; align: center; color: white; width: 2.5');
+                del.setAttribute('position', '1.7 0 0');
+                del.setAttribute('width', '1'); del.setAttribute('height', '0.45');
+                del.setAttribute('material', 'color: #c026d3; opacity: 0.92; transparent: true');
+                del.setAttribute('text', 'value: Delete; align: center; color: white; width: 3');
                 del.classList.add('clickable');
                 del.addEventListener('click', () => this.el.parentNode.removeChild(this.el));
                 btnGroup.appendChild(del);
 
                 this.el.appendChild(btnGroup);
+            },
+            tick: function (t, dt) {
+                if (scene.camera) this.el.object3D.lookAt(scene.camera.position);
+
+                // تحريك بسيط بالـ grip
+                if (this.moving) {
+                    const hands = document.querySelectorAll('[hand-controls]');
+                    hands.forEach(hand => {
+                        if (hand.components['hand-controls'].controller) {
+                            const pos = hand.object3D.getWorldPosition(new THREE.Vector3());
+                            this.el.object3D.position.copy(pos);
+                            this.el.object3D.position.y -= 0.5;
+                        }
+                    });
+                }
             }
         });
 
@@ -182,6 +203,14 @@
                 addThumbnail(file);
             }
         });
+
+        function clearAll() {
+            document.getElementById('thumbnails').innerHTML = '';
+            document.getElementById('hud-thumbnails').innerHTML = '';
+            while (scene.firstChild) scene.removeChild(scene.firstChild);
+            placementCount = 0;
+            status.textContent = 'تم المسح الكامل';
+        }
     </script>
 </body>
 </html>
