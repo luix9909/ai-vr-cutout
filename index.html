@@ -1,56 +1,1236 @@
-
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SpatialVision AR | رؤية مكانية</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>AR People Room - Passthrough Gallery</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- A-Frame & dependencies -->
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-event-set-component@^5.0.0/dist/aframe-event-set-component.min.js"></script>
+
     <style>
-        body {
-            font-family: 'IBM+Plex+Sans+Arabic', sans-serif;
+        /* =============================
+           RESET & BASE
+           ============================= */
+        * {
+            box-sizing: border-box;
             margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
             overflow: hidden;
-            background: #000;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #050505;
+            color: #f3f3f3;
+            direction: rtl;
         }
-        canvas {
-            touch-action: none;
+
+        body {
+            display: flex;
+            flex-direction: column;
         }
-        .glass {
-            background: rgba(15, 15, 20, 0.6);
-            backdrop-filter: blur(20px) saturate(180%);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+
+        /* =============================
+           APP SHELL
+           ============================= */
+        #app {
+            position: relative;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
-        .neon-border {
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+
+        /* =============================
+           TOP BAR
+           ============================= */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: linear-gradient(to right, rgba(0,0,0,0.9), rgba(10,10,10,0.9));
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            padding: 0 18px;
+            z-index: 50;
+            backdrop-filter: blur(12px);
         }
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .animate-float {
-            animation: float 3s ease-in-out infinite;
+
+        .brand-logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ffffff, #333333);
+            box-shadow: 0 0 14px rgba(255,255,255,0.4);
+        }
+
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand-title {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+
+        .brand-sub {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .top-bar-spacer {
+            flex: 1;
+        }
+
+        .top-bar-buttons {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            border: none;
+            outline: none;
+            border-radius: 999px;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.25s ease, transform 0.15s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+        }
+
+        .btn-primary {
+            background: #ffffff;
+            color: #000000;
+            box-shadow: 0 0 12px rgba(255,255,255,0.35);
+        }
+
+        .btn-primary:hover {
+            background: #f0f0f0;
+            transform: translateY(-1px);
+            box-shadow: 0 0 18px rgba(255,255,255,0.55);
+        }
+
+        .btn-ghost {
+            background: rgba(255,255,255,0.04);
+            color: #f3f3f3;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+
+        .btn-ghost:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.25);
+            transform: translateY(-1px);
+        }
+
+        .btn-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #f3f3f3;
+            transition: background 0.25s ease, transform 0.15s ease, border-color 0.25s ease;
+        }
+
+        .btn-icon:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.3);
+            transform: translateY(-1px);
+        }
+
+        .btn-icon svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* =============================
+           STATUS / TOAST
+           ============================= */
+        #status-bar {
+            position: absolute;
+            top: 72px;
+            left: 50%;
+            transform: translateX(-50%);
+            min-width: 240px;
+            max-width: 520px;
+            background: rgba(0,0,0,0.85);
+            border-radius: 999px;
+            padding: 8px 18px;
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 14px rgba(0,0,0,0.8);
+            font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(10px);
+        }
+
+        #status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #18e298;
+            box-shadow: 0 0 10px rgba(24,226,152,0.9);
+        }
+
+        #status-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* =============================
+           BOTTOM PANEL
+           ============================= */
+        .bottom-panel {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 160px;
+            background: linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0.7), transparent);
+            padding: 10px 14px 14px 14px;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+        }
+
+        .bottom-panel-inner {
+            max-width: 960px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .bottom-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .bottom-title {
+            font-size: 13px;
+            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .bottom-title span.icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #ffffff, #888888);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .bottom-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-input-button {
+            padding: 7px 14px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            border: 1px dashed rgba(255,255,255,0.25);
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .file-input-button:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.45);
+        }
+
+        .file-input-button small {
+            opacity: 0.75;
+        }
+
+        /* Thumbnail scroller */
+        .thumb-strip {
+            margin-top: 3px;
+            padding: 4px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .thumb-strip-label {
+            font-size: 11px;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .thumb-strip-label-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffffff;
+            opacity: 0.7;
+        }
+
+        .thumb-strip-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .thumb-item {
+            flex: 0 0 auto;
+            width: 80px;
+            height: 110px;
+            border-radius: 10px;
+            background: radial-gradient(circle at 30% 20%, #ffffff, #444444);
+            border: 1px solid rgba(255,255,255,0.4);
+            box-shadow: 0 0 13px rgba(0,0,0,0.9);
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .thumb-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 16px rgba(255,255,255,0.24);
+            border-color: rgba(255,255,255,0.9);
+        }
+
+        .thumb-item img,
+        .thumb-item video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .thumb-type-tag {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            padding: 2px 5px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.75);
+            font-size: 9px;
+        }
+
+        .thumb-delete {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.78);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .thumb-delete:hover {
+            background: rgba(0,0,0,0.95);
+        }
+
+        /* =============================
+           SIDEBAR (LIST OF PLACED OBJECTS)
+           ============================= */
+        .side-panel {
+            position: absolute;
+            top: 72px;
+            right: 12px;
+            width: 224px;
+            bottom: 170px;
+            border-radius: 15px;
+            background: radial-gradient(circle at 0 0, rgba(255,255,255,0.06), rgba(0,0,0,0.95));
+            box-shadow: 0 0 20px rgba(0,0,0,0.85);
+            z-index: 30;
+            padding: 10px 10px 10px 12px;
+            border: 1px solid rgba(255,255,255,0.12);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            backdrop-filter: blur(12px);
+        }
+
+        .side-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .side-header span {
+            font-weight: 600;
+        }
+
+        .side-header small {
+            opacity: 0.65;
+        }
+
+        .side-list {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+            padding-top: 3px;
+        }
+
+        .side-item {
+            border-radius: 9px;
+            padding: 6px 7px;
+            background: rgba(0,0,0,0.75);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+
+        .side-item:hover {
+            background: rgba(255,255,255,0.06);
+            transform: translateY(-1px);
+        }
+
+        .side-thumb {
+            width: 38px;
+            height: 38px;
+            border-radius: 7px;
+            overflow: hidden;
+            background: #222;
+        }
+
+        .side-thumb img,
+        .side-thumb video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .side-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+        }
+
+        .side-meta-title {
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .side-meta-sub {
+            font-size: 10px;
+            opacity: 0.6;
+        }
+
+        .side-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .pill-btn {
+            border: none;
+            font-size: 9px;
+            padding: 3px 6px;
+            border-radius: 999px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.08);
+            color: #f3f3f3;
+            transition: background 0.2s ease;
+        }
+
+        .pill-btn:hover {
+            background: rgba(255,255,255,0.19);
+        }
+
+        .pill-btn-danger {
+            background: rgba(255,50,50,0.13);
+            color: #ffcccc;
+        }
+
+        .pill-btn-danger:hover {
+            background: rgba(255,60,60,0.32);
+        }
+
+        /* =============================
+           A-SCENE CONTAINER
+           ============================= */
+        .scene-wrapper {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+        }
+
+        a-scene {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Hide default VR button bubble */
+        .a-enter-vr-button,
+        .a-enter-vr {
+            display: none !important;
+        }
+
+        /* =============================
+           RESPONSIVE
+           ============================= */
+        @media (max-width: 768px) {
+            .top-bar {
+                height: 58px;
+                padding-inline: 10px;
+            }
+
+            .bottom-panel {
+                height: 180px;
+            }
+
+            .side-panel {
+                display: none;
+            }
+
+            #status-bar {
+                top: 62px;
+            }
         }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "@react-three/fiber": "https://esm.sh/@react-three/fiber@^9.5.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.36.0",
-    "three": "https://esm.sh/three@^0.182.0",
-    "@react-three/drei": "https://esm.sh/@react-three/drei@^10.7.7",
-    "@react-three/xr": "https://esm.sh/@react-three/xr@^6.0.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body>
-    <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+<div id="app">
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+        <div class="brand">
+            <div class="brand-logo"></div>
+            <div class="brand-text">
+                <div class="brand-title">AR People Room</div>
+                <div class="brand-sub">ضع صورك كأنهم واقفين في غرفتك</div>
+            </div>
+        </div>
+        <div class="top-bar-spacer"></div>
+        <div class="top-bar-buttons">
+            <button id="btnEnterAR" class="btn btn-primary">
+                🚀 تشغيل وضع AR
+            </button>
+            <button id="btnResetAll" class="btn btn-ghost">
+                🗑️ مسح كل العناصر
+            </button>
+            <button id="btnHelp" class="btn-icon" title="مساعدة">
+                ?
+            </button>
+        </div>
+    </header>
+
+    <!-- Status Bar -->
+    <div id="status-bar">
+        <div id="status-dot"></div>
+        <div id="status-text">جاهز، ارفع صورة أو فيديو PNG مقصوص الخلفية.</div>
+    </div>
+
+    <!-- Side Panel: Placed Objects -->
+    <aside class="side-panel" id="sidePanel">
+        <div class="side-header">
+            <span>العناصر في الغرفة</span>
+            <small id="sideCount">0 عنصر</small>
+        </div>
+        <div class="side-list" id="sideList">
+            <!-- items injected here -->
+        </div>
+    </aside>
+
+    <!-- Bottom Panel: Uploads & Thumbnails -->
+    <section class="bottom-panel">
+        <div class="bottom-panel-inner">
+
+            <div class="bottom-panel-header">
+                <div class="bottom-title">
+                    <span class="icon">AR</span>
+                    إدارة الصور والفيديوهات في الغرفة
+                </div>
+                <div class="bottom-actions">
+                    <div class="file-input-wrapper">
+                        <div class="file-input-button">
+                            📷 إضافة صور
+                            <small>(PNG شفاف يُفضل)</small>
+                        </div>
+                        <input type="file" id="imageInput" accept="image/*" multiple>
+                    </div>
+                    <div class="file-input-wrapper">
+                        <div class="file-input-button">
+                            🎥 إضافة فيديوهات
+                            <small>(مع خلفية مقصوصة)</small>
+                        </div>
+                        <input type="file" id="videoInput" accept="video/*" multiple>
+                    </div>
+                </div>
+            </div>
+
+            <div class="thumb-strip">
+                <div class="thumb-strip-label">
+                    <div class="thumb-strip-label-dot"></div>
+                    العناصر المتاحة للإسقاط في الغرفة
+                </div>
+                <div class="thumb-strip-row" id="thumbStrip">
+                    <!-- thumbnails injected here -->
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Scene Wrapper -->
+    <div class="scene-wrapper">
+        <a-scene
+                id="scene"
+                renderer="alpha: true; antialias: true; colorManagement: true;"
+                background="color: #000000"
+                embedded
+                vr-mode-ui="enabled: false"
+                xr-mode-ui="enabled: true"
+        >
+            <a-assets id="assets"></a-assets>
+
+            <!-- Lights (subtle, neutral) -->
+            <a-entity light="type: ambient; intensity: 0.6; color: #ffffff"></a-entity>
+            <a-entity light="type: directional; intensity: 0.9; color: #ffffff"
+                      position="-1 3 -2"></a-entity>
+
+            <!-- Camera Rig -->
+            <a-entity id="rig">
+                <a-camera
+                        id="camera"
+                        position="0 1.6 0"
+                        wasd-controls-enabled="false"
+                        look-controls="pointerLockEnabled: false">
+                </a-camera>
+            </a-entity>
+        </a-scene>
+    </div>
+</div>
+
+<script>
+    // ================================
+    // GLOBAL VARIABLES & STATE
+    // ================================
+    const scene = document.getElementById('scene');
+    const assets = document.getElementById('assets');
+
+    const statusTextEl = document.getElementById('status-text');
+    const statusDotEl = document.getElementById('status-dot');
+    const thumbStrip = document.getElementById('thumbStrip');
+
+    const imageInput = document.getElementById('imageInput');
+    const videoInput = document.getElementById('videoInput');
+    const btnEnterAR = document.getElementById('btnEnterAR');
+    const btnResetAll = document.getElementById('btnResetAll');
+    const btnHelp = document.getElementById('btnHelp');
+    const sideList = document.getElementById('sideList');
+    const sideCount = document.getElementById('sideCount');
+
+    let isARSupported = false;
+    let isARActive = false;
+
+    // Uploaded media metadata
+    const mediaLibrary = [];   // { id, type: 'image'|'video', url, name }
+    // Placed entities in room
+    const placedItems = [];    // { id, mediaId, entity, type, name }
+
+    // For placing objects via tap
+    let selectedMediaForPlacement = null;
+
+    // ================================
+    // STATUS HELPER
+    // ================================
+    function setStatus(text, type = 'info') {
+        statusTextEl.textContent = text;
+        if (type === 'error') {
+            statusDotEl.style.background = '#ff5252';
+            statusDotEl.style.boxShadow = '0 0 8px rgba(255,82,82,0.9)';
+        } else if (type === 'success') {
+            statusDotEl.style.background = '#18e298';
+            statusDotEl.style.boxShadow = '0 0 8px rgba(24,226,152,0.9)';
+        } else {
+            statusDotEl.style.background = '#f5f5f5';
+            statusDotEl.style.boxShadow = '0 0 8px rgba(255,255,255,0.7)';
+        }
+    }
+
+    // ================================
+    // HELP MODAL (SIMPLE ALERT)
+    // ================================
+    btnHelp.addEventListener('click', () => {
+        alert(
+            'طريقة الاستخدام:\n\n' +
+            '1. اضغط "تشغيل وضع AR" لبدء عرض passthrough (إن كان جهازك يدعم WebXR AR).\n' +
+            '2. ارفع صور PNG مقصوصة الخلفية أو فيديوهات شفافة من الأسفل.\n' +
+            '3. اضغط على الصورة المصغرة، ثم المس في الغرفة (السقف/الجدار/الأرض) لوضع الشخص هناك.\n' +
+            '4. يمكنك تحديد شخص وتحريكه أو حذفه من القائمة الجانبية.\n\n' +
+            'ملاحظة: قص الخلفية يتم خارج الموقع (أدوات مثل Adobe Express / Photoroom).'
+        );
+    });
+
+    // ================================
+    // AR SUPPORT DETECTION
+    // ================================
+    if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+            isARSupported = supported;
+            if (supported) {
+                setStatus('جهازك يدعم WebXR AR، اضغط "تشغيل وضع AR" للبدء.', 'success');
+            } else {
+                setStatus('WebXR AR غير مدعوم بالكامل، سيتم عرض المشهد بدون passthrough.', 'error');
+            }
+        }).catch(() => {
+            isARSupported = false;
+            setStatus('تعذر فحص دعم AR، قد لا يعمل وضع passthrough.', 'error');
+        });
+    } else {
+        setStatus('متصفحك لا يدعم WebXR، سيتم عرض التجربة في وضع 3D عادي.', 'error');
+    }
+
+    // ================================
+    // ENTER AR
+    // ================================
+    btnEnterAR.addEventListener('click', () => {
+        // A-Frame will handle AR session using xr-mode-ui if available
+        // For consistent button, we manually call scene.enterVR, with AR mode preference
+        if (!scene.enterVR) {
+            setStatus('لا يمكن الدخول إلى وضع AR في هذا المتصفح.', 'error');
+            return;
+        }
+
+        // In A-Frame 1.6+, immersive-ar is chosen automatically if supported
+        scene.enterVR().then(() => {
+            isARActive = true;
+            setStatus('وضع AR نشط، انظر حولك وضع الأشخاص في غرفتك.', 'success');
+        }).catch((err) => {
+            console.error(err);
+            setStatus('تعذر الدخول إلى وضع AR، تأكد من المتصفح والجهاز.', 'error');
+        });
+    });
+
+    // ================================
+    // HANDLE FILE UPLOADS (IMAGES & VIDEOS)
+    // ================================
+    function handleFiles(files, type) {
+        if (!files || !files.length) return;
+        Array.from(files).forEach((file) => {
+            const url = URL.createObjectURL(file);
+            const id = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+            const name = file.name || (type === 'image' ? 'صورة' : 'فيديو');
+
+            // Register in library
+            mediaLibrary.push({
+                id,
+                type,
+                url,
+                name
+            });
+
+            // Create asset
+            let assetEl;
+            if (type === 'image') {
+                assetEl = document.createElement('img');
+                assetEl.setAttribute('id', id);
+                assetEl.setAttribute('src', url);
+                assetEl.crossOrigin = 'anonymous';
+                assets.appendChild(assetEl);
+            } else {
+                assetEl = document.createElement('video');
+                assetEl.setAttribute('id', id);
+                assetEl.setAttribute('src', url);
+                assetEl.setAttribute('loop', 'true');
+                assetEl.setAttribute('muted', 'true');
+                assetEl.setAttribute('playsinline', 'true');
+                assetEl.crossOrigin = 'anonymous';
+                assets.appendChild(assetEl);
+            }
+
+            // Create thumbnail
+            createThumb(id, type, url, name);
+        });
+
+        updateStatusAfterUpload();
+    }
+
+    function updateStatusAfterUpload() {
+        if (!mediaLibrary.length) {
+            setStatus('ارفـع صورة أو فيديو للبدء.', 'info');
+        } else {
+            setStatus('اضغط على صورة مصغرة، ثم المس في AR لوضعها في الغرفة.', 'success');
+        }
+    }
+
+    imageInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files, 'image');
+        imageInput.value = '';
+    });
+
+    videoInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files, 'video');
+        videoInput.value = '';
+    });
+
+    // ================================
+    // CREATE THUMB UI
+    // ================================
+    function createThumb(id, type, url, name) {
+        const item = document.createElement('div');
+        item.className = 'thumb-item';
+        item.dataset.id = id;
+
+        let mediaEl;
+        if (type === 'image') {
+            mediaEl = document.createElement('img');
+        } else {
+            mediaEl = document.createElement('video');
+            mediaEl.muted = true;
+            mediaEl.loop = true;
+            mediaEl.autoplay = true;
+            mediaEl.playsInline = true;
+        }
+        mediaEl.src = url;
+        item.appendChild(mediaEl);
+
+        const tag = document.createElement('div');
+        tag.className = 'thumb-type-tag';
+        tag.textContent = type === 'image' ? 'صورة' : 'فيديو';
+        item.appendChild(tag);
+
+        const del = document.createElement('div');
+        del.className = 'thumb-delete';
+        del.textContent = '✕';
+        del.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            deleteMediaFromLibrary(id);
+        });
+        item.appendChild(del);
+
+        item.title = name;
+
+        item.addEventListener('click', () => {
+            selectedMediaForPlacement = id;
+            setStatus('الآن المس في المكان داخل AR لوضع العنصر هناك.', 'info');
+        });
+
+        thumbStrip.appendChild(item);
+    }
+
+    function deleteMediaFromLibrary(id) {
+        // Remove from library
+        const idx = mediaLibrary.findIndex(m => m.id === id);
+        if (idx >= 0) {
+            mediaLibrary.splice(idx, 1);
+        }
+
+        // Remove asset
+        const asset = document.getElementById(id);
+        if (asset && asset.parentNode) {
+            asset.parentNode.removeChild(asset);
+        }
+
+        // Remove thumbnails
+        const thumbs = thumbStrip.querySelectorAll('.thumb-item');
+        thumbs.forEach(t => {
+            if (t.dataset.id === id) {
+                t.remove();
+            }
+        });
+
+        // Also remove placed items that use it
+        const copy = [...placedItems];
+        copy.forEach(pi => {
+            if (pi.mediaId === id) {
+                removePlacedItem(pi.id);
+            }
+        });
+
+        updateSidePanel();
+        updateStatusAfterUpload();
+    }
+
+    // ================================
+    // PLACE OBJECT IN AR SCENE
+    // ================================
+    // We'll use simple raycast from camera forward when user taps scene,
+    // approximating surface at fixed distance, to place item at ~2m in front.
+
+    scene.addEventListener('click', (evt) => {
+        if (!selectedMediaForPlacement) return;
+
+        const media = mediaLibrary.find(m => m.id === selectedMediaForPlacement);
+        if (!media) {
+            setStatus('العنصر المحدد غير موجود، أعد الاختيار.', 'error');
+            selectedMediaForPlacement = null;
+            return;
+        }
+
+        // Place at 2m in front of camera at head height
+        const cameraEl = document.getElementById('camera');
+        if (!cameraEl) return;
+
+        const camObj = cameraEl.object3D;
+        const pos = new THREE.Vector3();
+        const dir = new THREE.Vector3();
+        camObj.getWorldPosition(pos);
+        camObj.getWorldDirection(dir);
+
+        const distance = 2.0; // ~2 متر
+        dir.multiplyScalar(distance);
+        pos.add(dir);
+        // اجعل الارتفاع على مستوى الرأس تقريباً
+        pos.y = 1.6;
+
+        const itemId = 'placed_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+        let entity;
+        if (media.type === 'image') {
+            entity = document.createElement('a-plane');
+            entity.setAttribute('src', '#' + media.id);
+            entity.setAttribute('transparent', 'true'); // PNG alpha
+            entity.setAttribute('width', '0.7');
+            entity.setAttribute('height', '1.6');
+        } else {
+            entity = document.createElement('a-video');
+            entity.setAttribute('src', '#' + media.id);
+            entity.setAttribute('width', '0.9');
+            entity.setAttribute('height', '1.6');
+            entity.setAttribute('loop', 'true');
+            entity.setAttribute('autoplay', 'true');
+        }
+
+        entity.setAttribute('id', itemId);
+        entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
+        entity.setAttribute('shadow', 'cast: true; receive: false');
+
+        // Component to always face camera (billboard)
+        entity.setAttribute('billboard', '');
+
+        // Component to allow simple drag move
+        entity.setAttribute('draggable-plane', '');
+
+        // When clicked, select for potential side-panel operations
+        entity.addEventListener('click', (e2) => {
+            e2.stopPropagation();
+            highlightPlacedItem(itemId);
+        });
+
+        scene.appendChild(entity);
+
+        placedItems.push({
+            id: itemId,
+            mediaId: media.id,
+            entity,
+            type: media.type,
+            name: media.name
+        });
+
+        updateSidePanel();
+        setStatus('تم وضع العنصر في الغرفة، يمكنك تحريكه من القائمة الجانبية.', 'success');
+        selectedMediaForPlacement = null;
+    });
+
+    // ================================
+    // BILLBOARD COMPONENT
+    // ================================
+    AFRAME.registerComponent('billboard', {
+        tick: function () {
+            const cameraEl = document.querySelector('#camera');
+            if (!cameraEl) return;
+            const cameraObj = cameraEl.object3D;
+            const camPos = new THREE.Vector3();
+            cameraObj.getWorldPosition(camPos);
+            this.el.object3D.lookAt(camPos);
+        }
+    });
+
+    // ================================
+    // DRAGGABLE COMPONENT (MOVE ON HORIZONTAL PLANE)
+    // ================================
+    AFRAME.registerComponent('draggable-plane', {
+        init: function () {
+            this.dragging = false;
+            this.startMouse = new THREE.Vector2();
+            this.raycaster = new THREE.Raycaster();
+            this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // horizontal plane
+            this.offset = new THREE.Vector3();
+            this.startPos = new THREE.Vector3();
+            const el = this.el;
+
+            el.addEventListener('mousedown', this.onMouseDown.bind(this));
+            window.addEventListener('mousemove', this.onMouseMove.bind(this));
+            window.addEventListener('mouseup', this.onMouseUp.bind(this));
+            el.addEventListener('touchstart', this.onTouchStart.bind(this));
+            window.addEventListener('touchmove', this.onTouchMove.bind(this));
+            window.addEventListener('touchend', this.onTouchEnd.bind(this));
+        },
+        onMouseDown: function (evt) {
+            evt.preventDefault();
+            this.beginDrag(evt.clientX, evt.clientY);
+        },
+        onMouseMove: function (evt) {
+            if (!this.dragging) return;
+            evt.preventDefault();
+            this.dragTo(evt.clientX, evt.clientY);
+        },
+        onMouseUp: function () {
+            if (!this.dragging) return;
+            this.dragging = false;
+            setStatus('تم تثبيت العنصر في موقعه الجديد.', 'success');
+        },
+        onTouchStart: function (evt) {
+            if (!evt.touches || !evt.touches.length) return;
+            const t = evt.touches[0];
+            this.beginDrag(t.clientX, t.clientY);
+        },
+        onTouchMove: function (evt) {
+            if (!this.dragging || !evt.touches || !evt.touches.length) return;
+            const t = evt.touches[0];
+            this.dragTo(t.clientX, t.clientY);
+        },
+        onTouchEnd: function () {
+            if (!this.dragging) return;
+            this.dragging = false;
+            setStatus('تم تثبيت العنصر في موقعه الجديد.', 'success');
+        },
+        beginDrag: function (clientX, clientY) {
+            this.dragging = true;
+            this.startMouse.set(clientX, clientY);
+            this.startPos.copy(this.el.object3D.position);
+            setStatus('اسحب لتحريك الشخص في الغرفة.', 'info');
+        },
+        dragTo: function (clientX, clientY) {
+            const cameraEl = document.querySelector('#camera');
+            if (!cameraEl) return;
+            const cameraObj = cameraEl.object3D;
+            const camera = cameraEl.getObject3D('camera');
+            if (!camera) return;
+
+            const mouse = new THREE.Vector2();
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+
+            this.raycaster.setFromCamera(mouse, camera);
+
+            const intersection = new THREE.Vector3();
+            if (this.raycaster.ray.intersectPlane(this.plane, intersection)) {
+                // keep the same height, move in x-z
+                const pos = this.el.object3D.position;
+                pos.set(intersection.x, pos.y, intersection.z);
+            }
+        }
+    });
+
+    // ================================
+    // SIDE PANEL MANAGEMENT (LIST OF PLACED ITEMS)
+    // ================================
+    function updateSidePanel() {
+        sideList.innerHTML = '';
+        placedItems.forEach((item) => {
+            const media = mediaLibrary.find(m => m.id === item.mediaId);
+            if (!media) return;
+
+            const row = document.createElement('div');
+            row.className = 'side-item';
+            row.dataset.id = item.id;
+
+            const thumb = document.createElement('div');
+            thumb.className = 'side-thumb';
+
+            let mEl;
+            if (item.type === 'image') {
+                mEl = document.createElement('img');
+            } else {
+                mEl = document.createElement('video');
+                mEl.autoplay = true;
+                mEl.muted = true;
+                mEl.loop = true;
+                mEl.playsInline = true;
+            }
+            mEl.src = media.url;
+            thumb.appendChild(mEl);
+
+            const meta = document.createElement('div');
+            meta.className = 'side-meta';
+
+            const title = document.createElement('div');
+            title.className = 'side-meta-title';
+            title.textContent = media.name;
+            meta.appendChild(title);
+
+            const sub = document.createElement('div');
+            sub.className = 'side-meta-sub';
+            sub.textContent = item.type === 'image' ? 'صورة ثابتة' : 'فيديو في الغرفة';
+            meta.appendChild(sub);
+
+            const actions = document.createElement('div');
+            actions.className = 'side-actions';
+
+            const btnFocus = document.createElement('button');
+            btnFocus.className = 'pill-btn';
+            btnFocus.textContent = '👁️ عرض';
+            btnFocus.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                focusOnItem(item.id);
+            });
+
+            const btnDelete = document.createElement('button');
+            btnDelete.className = 'pill-btn pill-btn-danger';
+            btnDelete.textContent = 'حذف';
+            btnDelete.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                removePlacedItem(item.id);
+            });
+
+            actions.appendChild(btnFocus);
+            actions.appendChild(btnDelete);
+
+            row.appendChild(thumb);
+            row.appendChild(meta);
+            row.appendChild(actions);
+
+            row.addEventListener('click', () => {
+                highlightPlacedItem(item.id);
+            });
+
+            sideList.appendChild(row);
+        });
+
+        sideCount.textContent = placedItems.length + ' عنصر';
+    }
+
+    function highlightPlacedItem(id) {
+        placedItems.forEach((item) => {
+            if (!item.entity) return;
+            const isTarget = item.id === id;
+            item.entity.setAttribute('material', 'opacity: 1;');
+            if (isTarget) {
+                item.entity.setAttribute('animation__pulse', {
+                    property: 'scale',
+                    from: '1 1 1',
+                    to: '1.05 1.05 1.05',
+                    dur: 200,
+                    dir: 'alternate',
+                    loop: 3
+                });
+            }
+        });
+        setStatus('تم تحديد العنصر، يمكنك تحريكه بالماوس/اللمس.', 'info');
+    }
+
+    function focusOnItem(id) {
+        const item = placedItems.find(p => p.id === id);
+        if (!item || !item.entity) return;
+
+        const cameraEl = document.getElementById('camera');
+        if (!cameraEl) return;
+
+        // Move camera rig to look at item (in non-AR mode mainly)
+        const rig = document.getElementById('rig');
+        const entPos = new THREE.Vector3();
+        item.entity.object3D.getWorldPosition(entPos);
+
+        // Place camera rig a bit behind original position and look at the entity
+        rig.object3D.position.set(entPos.x, rig.object3D.position.y, entPos.z + 2.0);
+
+        const camObj = cameraEl.object3D;
+        camObj.lookAt(entPos);
+        setStatus('تم تحريك الكاميرا لمشاهدة العنصر.', 'success');
+    }
+
+    function removePlacedItem(id) {
+        const idx = placedItems.findIndex(p => p.id === id);
+        if (idx < 0) return;
+        const item = placedItems[idx];
+        if (item.entity && item.entity.parentNode) {
+            item.entity.parentNode.removeChild(item.entity);
+        }
+        placedItems.splice(idx, 1);
+        updateSidePanel();
+        setStatus('تم حذف العنصر من الغرفة.', 'success');
+    }
+
+    // ================================
+    // RESET ALL
+    // ================================
+    btnResetAll.addEventListener('click', () => {
+        if (!confirm('هل أنت متأكد من مسح جميع العناصر من الغرفة؟')) return;
+        // Remove placed items
+        while (placedItems.length) {
+            const item = placedItems.pop();
+            if (item.entity && item.entity.parentNode) {
+                item.entity.parentNode.removeChild(item.entity);
+            }
+        }
+        updateSidePanel();
+        setStatus('تم مسح جميع العناصر من الغرفة.', 'success');
+    });
+
+    // ================================
+    // INITIAL STATUS
+    // ================================
+    window.addEventListener('load', () => {
+        setStatus('جاهز، ابدأ برفع صورة أو فيديو ثم ادخل وضع AR.', 'info');
+    });
+</script>
 </body>
 </html>
