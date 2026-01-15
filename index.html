@@ -324,6 +324,7 @@
         }
 
         .thumb-strip-row {
+            margin-top: 6px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -563,7 +564,7 @@
             <div class="brand-logo"></div>
             <div class="brand-text">
                 <div class="brand-title">AR People Room</div>
-                <div class="brand-sub">ضع صورك كأنهم واقفين في غرفتك</div>
+                <div class="brand-sub">ضع صورك أو فيديوهات في غرفتك باستخدام AR</div>
             </div>
         </div>
         <div class="top-bar-spacer"></div>
@@ -583,7 +584,7 @@
     <!-- Status Bar -->
     <div id="status-bar">
         <div id="status-dot"></div>
-        <div id="status-text">جاهز، ارفع صورة أو فيديو PNG مقصوص الخلفية.</div>
+        <div id="status-text">جاهز، ارفع صورة أو فيديو ثم ادخل وضع AR.</div>
     </div>
 
     <!-- Side Panel: Placed Objects -->
@@ -610,14 +611,14 @@
                     <div class="file-input-wrapper">
                         <div class="file-input-button">
                             📷 إضافة صور
-                            <small>(PNG شفاف يُفضل)</small>
+                            <small>(يمكن استخدام PNG أو JPG)</small>
                         </div>
                         <input type="file" id="imageInput" accept="image/*" multiple>
                     </div>
                     <div class="file-input-wrapper">
                         <div class="file-input-button">
                             🎥 إضافة فيديوهات
-                            <small>(مع خلفية مقصوصة)</small>
+                            <small>(يفضل مقاطع جاهزة للتشغيل)</small>
                         </div>
                         <input type="file" id="videoInput" accept="video/*" multiple>
                     </div>
@@ -663,6 +664,22 @@
                         look-controls="pointerLockEnabled: false">
                 </a-camera>
             </a-entity>
+
+            <!-- VR Controllers with laser pointers (will be visible in VR / AR controllers) -->
+            <a-entity id="rightHand"
+                      hand-controls="hand: right; handModelStyle: lowPoly; color: #39BB82"
+                      laser-controls="hand: right"
+                      raycaster="objects: .interactive; showLine: false">
+            </a-entity>
+
+            <a-entity id="leftHand"
+                      hand-controls="hand: left; handModelStyle: lowPoly; color: #39BB82"
+                      laser-controls="hand: left"
+                      raycaster="objects: .interactive; showLine: false">
+            </a-entity>
+
+            <!-- A visible laser line (attached to each controller via JS for consistent look) -->
+
         </a-scene>
     </div>
 </div>
@@ -690,12 +707,15 @@
     let isARActive = false;
 
     // Uploaded media metadata
-    const mediaLibrary = [];   // { id, type: 'image'|'video', url, name }
+    const mediaLibrary = [];   // { id, type: 'image'|'video', url, name, assetEl }
     // Placed entities in room
     const placedItems = [];    // { id, mediaId, entity, type, name }
 
     // For placing objects via tap
     let selectedMediaForPlacement = null;
+
+    // For controller interactions
+    const controllers = {}; // right / left state
 
     // ================================
     // STATUS HELPER
@@ -715,16 +735,16 @@
     }
 
     // ================================
-    // HELP MODAL (SIMPLE ALERT)
+    // HELP MODAL (SIMPLE ALERT) - updated text (no mention of background removal)
     // ================================
     btnHelp.addEventListener('click', () => {
         alert(
             'طريقة الاستخدام:\n\n' +
-            '1. اضغط "تشغيل وضع AR" لبدء عرض passthrough (إن كان جهازك يدعم WebXR AR).\n' +
-            '2. ارفع صور PNG مقصوصة الخلفية أو فيديوهات شفافة من الأسفل.\n' +
-            '3. اضغط على الصورة المصغرة، ثم المس في الغرفة (السقف/الجدار/الأرض) لوضع الشخص هناك.\n' +
-            '4. يمكنك تحديد شخص وتحريكه أو حذفه من القائمة الجانبية.\n\n' +
-            'ملاحظة: قص الخلفية يتم خارج الموقع (أدوات مثل Adobe Express / Photoroom).'
+            '1. اضغط "تشغيل وضع AR" لبدء العرض (إن كان جهازك يدعم WebXR AR).\n' +
+            '2. ارفع صور أو فيديوهات من الأسفل.\n' +
+            '3. اضغط على الصورة المصغرة، ثم المس أو استخدم يد VR للإشارة ووضع العنصر في الغرفة.\n' +
+            '4. في وضع VR/AR يمكنك استخدام يد التحكم (الليزر) للإمساك وتحريك العناصر وتركها في المكان المطلوب.\n\n' +
+            'ملاحظة: سيتحرك الفيديو تلقائياً ويعمل في حلقة (loop) عند وضعه.'
         );
     });
 
@@ -737,7 +757,7 @@
             if (supported) {
                 setStatus('جهازك يدعم WebXR AR، اضغط "تشغيل وضع AR" للبدء.', 'success');
             } else {
-                setStatus('WebXR AR غير مدعوم بالكامل، سيتم عرض المشهد بدون passthrough.', 'error');
+                setStatus('WebXR AR غير مدعوم بالكامل، سيتم عرض المشهد بدون passthrough كامل.', 'error');
             }
         }).catch(() => {
             isARSupported = false;
@@ -748,28 +768,195 @@
     }
 
     // ================================
-    // ENTER AR
+    // ENTER AR - try to request immersive-ar session explicitly for passthrough
     // ================================
-    btnEnterAR.addEventListener('click', () => {
-        // A-Frame will handle AR session using xr-mode-ui if available
-        // For consistent button, we manually call scene.enterVR, with AR mode preference
-        if (!scene.enterVR) {
-            setStatus('لا يمكن الدخول إلى وضع AR في هذا المتصفح.', 'error');
+    btnEnterAR.addEventListener('click', async () => {
+        if (!navigator.xr) {
+            setStatus('متصفحك لا يدعم WebXR.', 'error');
             return;
         }
 
-        // In A-Frame 1.6+, immersive-ar is chosen automatically if supported
-        scene.enterVR().then(() => {
+        // Try to request an immersive-ar session explicitly: best-effort to enable passthrough.
+        try {
+            if (isARSupported) {
+                const sessionInit = {
+                    optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers', 'dom-overlay'],
+                    // some browsers require DOM overlay origin, skip if not needed
+                };
+                const session = await navigator.xr.requestSession('immersive-ar', sessionInit).catch(err => {
+                    console.warn('requestSession fallback', err);
+                    return null;
+                });
+
+                if (session) {
+                    // Attach the session to three.js / A-Frame renderer
+                    if (scene.renderer && scene.renderer.xr) {
+                        await scene.renderer.xr.setSession(session);
+                        isARActive = true;
+                        setStatus('وضع AR نشط (passthrough) — استخدم أدوات التحكم أو المس للشاشة.', 'success');
+                        // Show controllers when session starts
+                        enableControllersForSession();
+                        return;
+                    }
+                }
+            }
+
+            // Fallback to A-Frame enterVR (it will pick immersive-ar when available)
+            if (!scene.enterVR) {
+                setStatus('لا يمكن الدخول إلى وضع AR في هذا المتصفح.', 'error');
+                return;
+            }
+            await scene.enterVR();
             isARActive = true;
-            setStatus('وضع AR نشط، انظر حولك وضع الأشخاص في غرفتك.', 'success');
-        }).catch((err) => {
+            setStatus('وضع AR/VR نشط، استخدم الليزر في يد التحكم للإشارة والتحريك.', 'success');
+            enableControllersForSession();
+        } catch (err) {
             console.error(err);
-            setStatus('تعذر الدخول إلى وضع AR، تأكد من المتصفح والجهاز.', 'error');
-        });
+            setStatus('تعذر الدخول إلى وضع AR، تأكد من المتصفح/الأجهزة.', 'error');
+        }
     });
 
     // ================================
+    // CONTROLLER + LASER + GRAB IMPLEMENTATION
+    // - uses built-in raycaster on controllers to find .interactive elements
+    // - supports grabbing (attach to controller) and release
+    // - draws visible laser line from controller forward and always oriented
+    // ================================
+    function enableControllersForSession() {
+        // create visible laser lines and setup event listeners
+        ['right', 'left'].forEach(hand => {
+            const el = document.getElementById(hand + 'Hand') || document.getElementById(hand + 'Hand'.replace('Hand', ''));
+            // A-Frame entity IDs are rightHand / leftHand in markup
+            const controllerEl = document.getElementById(hand + 'Hand') || document.getElementById(hand === 'right' ? 'rightHand' : 'leftHand');
+            if (!controllerEl) return;
+
+            // Ensure we only add once
+            if (controllers[hand]) return;
+
+            // Add a visible laser line (a thin cylinder or line)
+            const laser = document.createElement('a-entity');
+            laser.setAttribute('geometry', 'primitive: cylinder; radius: 0.002; height: 1');
+            laser.setAttribute('material', 'color: #39BB82; opacity: 0.9; shader: flat');
+            laser.setAttribute('position', '0 0 -0.5');
+            laser.setAttribute('rotation', '90 0 0');
+            laser.setAttribute('class', 'laser-visual');
+            controllerEl.appendChild(laser);
+
+            controllers[hand] = {
+                el: controllerEl,
+                hovered: null,
+                grabbed: null
+            };
+
+            // Raycaster events: maintain hovered element (A-Frame raycaster emits events)
+            controllerEl.addEventListener('raycaster-intersection', (evt) => {
+                if (!evt.detail || !evt.detail.els || !evt.detail.els.length) return;
+                // pick the closest intersected
+                const nearest = evt.detail.els[0];
+                controllers[hand].hovered = nearest;
+                // visual hint: slightly scale
+                if (nearest) nearest.object3D.scale.set(1.02, 1.02, 1.02);
+            });
+
+            controllerEl.addEventListener('raycaster-intersection-cleared', (evt) => {
+                // clear hover
+                if (controllers[hand].hovered) {
+                    try {
+                        controllers[hand].hovered.object3D.scale.set(1, 1, 1);
+                    } catch (e) {}
+                }
+                controllers[hand].hovered = null;
+            });
+
+            // Grip / trigger down to grab
+            controllerEl.addEventListener('triggerdown', (evt) => {
+                const state = controllers[hand];
+                const hovered = state.hovered;
+                if (!hovered) {
+                    setStatus('لم يتم الإشارة إلى أي عنصر.', 'info');
+                    return;
+                }
+                // grab if it's interactive
+                if (hovered.classList.contains('interactive')) {
+                    // store original world transform
+                    state.grabbed = {
+                        el: hovered,
+                        originalParent: hovered.parentElement
+                    };
+                    // compute offset to keep relative pose
+                    const handObj = controllerEl.object3D;
+                    // make sure world matrices are updated
+                    handObj.updateMatrixWorld();
+                    hovered.object3D.updateMatrixWorld();
+
+                    // compute inverse matrix to preserve local transform when reparenting
+                    const inv = new THREE.Matrix4().copy(handObj.matrixWorld).invert();
+                    hovered.object3D.applyMatrix4(inv);
+                    // attach to controller
+                    controllerEl.appendChild(hovered);
+                    setStatus('تم الإمساك بالعنصر. حرّكه ثم ارفع الزناد للإفلات.', 'info');
+
+                    // if the grabbed item is a video, ensure it plays and loops
+                    const mediaId = hovered.getAttribute && hovered.getAttribute('data-media-id');
+                    if (mediaId) {
+                        const media = mediaLibrary.find(m => m.id === mediaId);
+                        if (media && media.type === 'video' && media.assetEl) {
+                            try {
+                                media.assetEl.loop = true;
+                                media.assetEl.muted = false; // allow sound if desired (may be blocked until user gesture)
+                                media.assetEl.play().catch(()=>{ /* autoplay may be blocked */ });
+                            } catch (e) {}
+                        }
+                    }
+                }
+            });
+
+            // Release on triggerup
+            controllerEl.addEventListener('triggerup', (evt) => {
+                const state = controllers[hand];
+                if (!state.grabbed) {
+                    return;
+                }
+                const grabbed = state.grabbed;
+                const grabbedEl = grabbed.el;
+                // compute world matrix of grabbed (since it's child of controller)
+                grabbedEl.object3D.updateMatrixWorld();
+                const worldMat = grabbedEl.object3D.matrixWorld.clone();
+
+                // detach and reparent back to scene
+                scene.appendChild(grabbedEl);
+
+                // apply world matrix to new parent (scene)
+                grabbedEl.object3D.matrix.copy(worldMat);
+                grabbedEl.object3D.matrix.decompose(grabbedEl.object3D.position, grabbedEl.object3D.quaternion, grabbedEl.object3D.scale);
+                grabbedEl.object3D.updateMatrixWorld(true);
+
+                // clear state
+                state.grabbed = null;
+                setStatus('تم إفلات العنصر.', 'success');
+            });
+
+            // keep laser oriented forward always when controller present
+            controllerEl.addEventListener('controllerconnected', () => {
+                // ensure visible laser exists and is long enough
+                // Also listen for controller pose updates to keep laser aligned
+            });
+        });
+    }
+
+    // When session ends, cleanup controllers state
+    if (navigator.xr) {
+        navigator.xr.addEventListener && navigator.xr.addEventListener('end', () => {
+            // simple cleanup
+            Object.keys(controllers).forEach(h => {
+                controllers[h] = null;
+            });
+        });
+    }
+
+    // ================================
     // HANDLE FILE UPLOADS (IMAGES & VIDEOS)
+    // - ensure videos autoplay & loop reliably by calling play() after load and setting attributes
     // ================================
     function handleFiles(files, type) {
         if (!files || !files.length) return;
@@ -777,14 +964,6 @@
             const url = URL.createObjectURL(file);
             const id = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2);
             const name = file.name || (type === 'image' ? 'صورة' : 'فيديو');
-
-            // Register in library
-            mediaLibrary.push({
-                id,
-                type,
-                url,
-                name
-            });
 
             // Create asset
             let assetEl;
@@ -802,8 +981,23 @@
                 assetEl.setAttribute('muted', 'true');
                 assetEl.setAttribute('playsinline', 'true');
                 assetEl.crossOrigin = 'anonymous';
+                assetEl.setAttribute('webkit-playsinline', 'true');
                 assets.appendChild(assetEl);
+
+                // Try to play as soon as metadata is loaded (user gesture may be required)
+                assetEl.addEventListener('loadeddata', () => {
+                    try { assetEl.play().catch(()=>{}); } catch(e) {}
+                });
             }
+
+            // Register in library
+            mediaLibrary.push({
+                id,
+                type,
+                url,
+                name,
+                assetEl
+            });
 
             // Create thumbnail
             createThumb(id, type, url, name);
@@ -814,9 +1008,9 @@
 
     function updateStatusAfterUpload() {
         if (!mediaLibrary.length) {
-            setStatus('ارفـع صورة أو فيديو للبدء.', 'info');
+            setStatus('ارفع صورة أو فيديو للبدء.', 'info');
         } else {
-            setStatus('اضغط على صورة مصغرة، ثم المس في AR لوضعها في الغرفة.', 'success');
+            setStatus('اختر عنصر ثم المس أو استخدم الليزر في يد VR لوضعه في الغرفة.', 'success');
         }
     }
 
@@ -869,7 +1063,7 @@
 
         item.addEventListener('click', () => {
             selectedMediaForPlacement = id;
-            setStatus('الآن المس في المكان داخل AR لوضع العنصر هناك.', 'info');
+            setStatus('الآن المس في المكان داخل AR أو استخدم الليزر لوضع العنصر هناك.', 'info');
         });
 
         thumbStrip.appendChild(item);
@@ -879,13 +1073,14 @@
         // Remove from library
         const idx = mediaLibrary.findIndex(m => m.id === id);
         if (idx >= 0) {
+            // revoke url
+            try { URL.revokeObjectURL(mediaLibrary[idx].url); } catch (e) {}
+            // remove asset element
+            const asset = document.getElementById(id);
+            if (asset && asset.parentNode) {
+                asset.parentNode.removeChild(asset);
+            }
             mediaLibrary.splice(idx, 1);
-        }
-
-        // Remove asset
-        const asset = document.getElementById(id);
-        if (asset && asset.parentNode) {
-            asset.parentNode.removeChild(asset);
         }
 
         // Remove thumbnails
@@ -910,10 +1105,11 @@
 
     // ================================
     // PLACE OBJECT IN AR SCENE
+    // - when user taps the scene or uses controller "select" event
+    // - items are given class .interactive so controllers can raycast them
+    // - set videos to loop and play when placed
     // ================================
-    // We'll use simple raycast from camera forward when user taps scene,
-    // approximating surface at fixed distance, to place item at ~2m in front.
-
+    // Place on scene tap/click
     scene.addEventListener('click', (evt) => {
         if (!selectedMediaForPlacement) return;
 
@@ -946,26 +1142,35 @@
         if (media.type === 'image') {
             entity = document.createElement('a-plane');
             entity.setAttribute('src', '#' + media.id);
-            entity.setAttribute('transparent', 'true'); // PNG alpha
+            entity.setAttribute('transparent', 'true');
             entity.setAttribute('width', '0.7');
             entity.setAttribute('height', '1.6');
         } else {
+            // use a-plane with material=shader:flat and map the video texture
             entity = document.createElement('a-video');
             entity.setAttribute('src', '#' + media.id);
             entity.setAttribute('width', '0.9');
             entity.setAttribute('height', '1.6');
             entity.setAttribute('loop', 'true');
             entity.setAttribute('autoplay', 'true');
+            // ensure video plays
+            if (media.assetEl) {
+                try { media.assetEl.muted = false; media.assetEl.loop = true; media.assetEl.play().catch(()=>{}); } catch(e){}
+            }
         }
 
         entity.setAttribute('id', itemId);
         entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
         entity.setAttribute('shadow', 'cast: true; receive: false');
 
+        // make interactive for controller raycasting and grabbing
+        entity.classList.add('interactive');
+        entity.setAttribute('data-media-id', media.id);
+
         // Component to always face camera (billboard)
         entity.setAttribute('billboard', '');
 
-        // Component to allow simple drag move
+        // Component to allow simple drag move (mouse/touch)
         entity.setAttribute('draggable-plane', '');
 
         // When clicked, select for potential side-panel operations
@@ -985,9 +1190,88 @@
         });
 
         updateSidePanel();
-        setStatus('تم وضع العنصر في الغرفة، يمكنك تحريكه من القائمة الجانبية.', 'success');
+        setStatus('تم وضع العنصر في الغرفة.', 'success');
         selectedMediaForPlacement = null;
     });
+
+    // Additionally, allow controller "select" to place (some controllers send 'triggerdown' etc).
+    // We'll listen to scene-level controller events and place at controller's forward ray intersection (or fixed distance).
+    function setupControllerPlacement() {
+        // Use controller entities in scene (rightHand / leftHand) and listen for 'gripdown' while a media selected to place
+        ['rightHand', 'leftHand'].forEach(id => {
+            const c = document.getElementById(id);
+            if (!c) return;
+            c.addEventListener('triggerdown', (ev) => {
+                // if user selected a media from UI, place it where the controller is pointing
+                if (!selectedMediaForPlacement) return;
+                const media = mediaLibrary.find(m => m.id === selectedMediaForPlacement);
+                if (!media) return;
+
+                // find intersection with floor plane using controller's raycaster
+                const raycasterComp = c.components.raycaster;
+                let position = new THREE.Vector3();
+                if (raycasterComp && raycasterComp.intersections && raycasterComp.intersections.length) {
+                    const inter = raycasterComp.intersections[0];
+                    if (inter && inter.point) {
+                        position.copy(inter.point);
+                    }
+                } else {
+                    // fallback: place a fixed distance forward from controller
+                    const obj = c.object3D;
+                    obj.getWorldPosition(position);
+                    const dir = new THREE.Vector3();
+                    obj.getWorldDirection(dir);
+                    dir.multiplyScalar(1.6);
+                    position.add(dir);
+                    position.y = 1.6;
+                }
+
+                const itemId = 'placed_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+                let entity;
+                if (media.type === 'image') {
+                    entity = document.createElement('a-plane');
+                    entity.setAttribute('src', '#' + media.id);
+                    entity.setAttribute('transparent', 'true');
+                    entity.setAttribute('width', '0.7');
+                    entity.setAttribute('height', '1.6');
+                } else {
+                    entity = document.createElement('a-video');
+                    entity.setAttribute('src', '#' + media.id);
+                    entity.setAttribute('width', '0.9');
+                    entity.setAttribute('height', '1.6');
+                    entity.setAttribute('loop', 'true');
+                    entity.setAttribute('autoplay', 'true');
+                    if (media.assetEl) {
+                        try { media.assetEl.muted = false; media.assetEl.loop = true; media.assetEl.play().catch(()=>{}); } catch(e){}
+                    }
+                }
+                entity.setAttribute('id', itemId);
+                entity.setAttribute('position', `${position.x} ${position.y} ${position.z}`);
+                entity.setAttribute('shadow', 'cast: true; receive: false');
+                entity.classList.add('interactive');
+                entity.setAttribute('data-media-id', media.id);
+                entity.setAttribute('billboard', '');
+                entity.setAttribute('draggable-plane', '');
+                entity.addEventListener('click', (e2) => { e2.stopPropagation(); highlightPlacedItem(itemId); });
+
+                scene.appendChild(entity);
+                placedItems.push({
+                    id: itemId,
+                    mediaId: media.id,
+                    entity,
+                    type: media.type,
+                    name: media.name
+                });
+                updateSidePanel();
+                setStatus('تم وضع العنصر عبر يد VR.', 'success');
+                selectedMediaForPlacement = null;
+            });
+        });
+    }
+
+    // Call once to wire up controller placement (entities exist in DOM)
+    setupControllerPlacement();
 
     // ================================
     // BILLBOARD COMPONENT
@@ -999,12 +1283,20 @@
             const cameraObj = cameraEl.object3D;
             const camPos = new THREE.Vector3();
             cameraObj.getWorldPosition(camPos);
-            this.el.object3D.lookAt(camPos);
+            // Make plane face the camera in XZ-plane but keep upright
+            const obj = this.el.object3D;
+            const pos = new THREE.Vector3();
+            obj.getWorldPosition(pos);
+            const lookVec = new THREE.Vector3().subVectors(camPos, pos);
+            lookVec.y = 0; // keep upright
+            if (lookVec.lengthSq() === 0) return;
+            obj.lookAt(new THREE.Vector3(pos.x + lookVec.x, pos.y, pos.z + lookVec.z));
         }
     });
 
     // ================================
     // DRAGGABLE COMPONENT (MOVE ON HORIZONTAL PLANE)
+    // (keeps previous mouse/touch behavior)
     // ================================
     AFRAME.registerComponent('draggable-plane', {
         init: function () {
@@ -1061,7 +1353,6 @@
         dragTo: function (clientX, clientY) {
             const cameraEl = document.querySelector('#camera');
             if (!cameraEl) return;
-            const cameraObj = cameraEl.object3D;
             const camera = cameraEl.getObject3D('camera');
             if (!camera) return;
 
@@ -1174,7 +1465,7 @@
                 });
             }
         });
-        setStatus('تم تحديد العنصر، يمكنك تحريكه بالماوس/اللمس.', 'info');
+        setStatus('تم تحديد العنصر، يمكنك تحريكه بالماوس/اللمس أو الإمساك به بيد VR.', 'info');
     }
 
     function focusOnItem(id) {
@@ -1230,7 +1521,10 @@
     // ================================
     window.addEventListener('load', () => {
         setStatus('جاهز، ابدأ برفع صورة أو فيديو ثم ادخل وضع AR.', 'info');
+        // enable controllers wiring (in case they were present)
+        enableControllersForSession();
     });
+
 </script>
 </body>
 </html>
