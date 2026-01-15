@@ -1,7 +1,0 @@
-{
-  "name": "SpatialVision AR",
-  "description": "An advanced AR web application that allows users to place images and videos in their real-world environment using passthrough technology and spatial persistence.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
