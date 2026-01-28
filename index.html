@@ -1,1529 +1,308 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>AR People Room - Passthrough Gallery</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <!-- A-Frame & dependencies -->
-    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-event-set-component@^5.0.0/dist/aframe-event-set-component.min.js"></script>
-
-    <style>
-        /* =============================
-           RESET & BASE
-           ============================= */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html, body {
-            height: 100%;
-            width: 100%;
-            overflow: hidden;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: #050505;
-            color: #f3f3f3;
-            direction: rtl;
-        }
-
-        body {
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* =============================
-           APP SHELL
-           ============================= */
-        #app {
-            position: relative;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* =============================
-           TOP BAR
-           ============================= */
-        .top-bar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 64px;
-            background: linear-gradient(to right, rgba(0,0,0,0.9), rgba(10,10,10,0.9));
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-            display: flex;
-            align-items: center;
-            padding: 0 18px;
-            z-index: 50;
-            backdrop-filter: blur(12px);
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .brand-logo {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #ffffff, #333333);
-            box-shadow: 0 0 14px rgba(255,255,255,0.4);
-        }
-
-        .brand-text {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .brand-title {
-            font-size: 17px;
-            font-weight: 700;
-            letter-spacing: 0.03em;
-        }
-
-        .brand-sub {
-            font-size: 11px;
-            opacity: 0.7;
-        }
-
-        .top-bar-spacer {
-            flex: 1;
-        }
-
-        .top-bar-buttons {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .btn {
-            border: none;
-            outline: none;
-            border-radius: 999px;
-            padding: 8px 16px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: background 0.25s ease, transform 0.15s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-        }
-
-        .btn-primary {
-            background: #ffffff;
-            color: #000000;
-            box-shadow: 0 0 12px rgba(255,255,255,0.35);
-        }
-
-        .btn-primary:hover {
-            background: #f0f0f0;
-            transform: translateY(-1px);
-            box-shadow: 0 0 18px rgba(255,255,255,0.55);
-        }
-
-        .btn-ghost {
-            background: rgba(255,255,255,0.04);
-            color: #f3f3f3;
-            border: 1px solid rgba(255,255,255,0.15);
-        }
-
-        .btn-ghost:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.25);
-            transform: translateY(-1px);
-        }
-
-        .btn-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.15);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: #f3f3f3;
-            transition: background 0.25s ease, transform 0.15s ease, border-color 0.25s ease;
-        }
-
-        .btn-icon:hover {
-            background: rgba(255,255,255,0.08);
-            border-color: rgba(255,255,255,0.3);
-            transform: translateY(-1px);
-        }
-
-        .btn-icon svg {
-            width: 16px;
-            height: 16px;
-        }
-
-        /* =============================
-           STATUS / TOAST
-           ============================= */
-        #status-bar {
-            position: absolute;
-            top: 72px;
-            left: 50%;
-            transform: translateX(-50%);
-            min-width: 240px;
-            max-width: 520px;
-            background: rgba(0,0,0,0.85);
-            border-radius: 999px;
-            padding: 8px 18px;
-            z-index: 40;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            box-shadow: 0 0 14px rgba(0,0,0,0.8);
-            font-size: 13px;
-            border: 1px solid rgba(255,255,255,0.08);
-            backdrop-filter: blur(10px);
-        }
-
-        #status-dot {
-            width: 9px;
-            height: 9px;
-            border-radius: 50%;
-            background: #18e298;
-            box-shadow: 0 0 10px rgba(24,226,152,0.9);
-        }
-
-        #status-text {
-            flex: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* =============================
-           BOTTOM PANEL
-           ============================= */
-        .bottom-panel {
-            position: absolute;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            height: 160px;
-            background: linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0.7), transparent);
-            padding: 10px 14px 14px 14px;
-            z-index: 40;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            pointer-events: none;
-        }
-
-        .bottom-panel-inner {
-            max-width: 960px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            pointer-events: auto;
-        }
-
-        .bottom-panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-        }
-
-        .bottom-title {
-            font-size: 13px;
-            opacity: 0.9;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .bottom-title span.icon {
-            width: 18px;
-            height: 18px;
-            border-radius: 6px;
-            background: linear-gradient(135deg, #ffffff, #888888);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #000;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .bottom-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: inline-block;
-        }
-
-        .file-input-wrapper input[type="file"] {
-            position: absolute;
-            inset: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .file-input-button {
-            padding: 7px 14px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.06);
-            border: 1px dashed rgba(255,255,255,0.25);
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            transition: background 0.2s ease, border-color 0.2s ease;
-        }
-
-        .file-input-button:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: rgba(255,255,255,0.45);
-        }
-
-        .file-input-button small {
-            opacity: 0.75;
-        }
-
-        /* Thumbnail scroller */
-        .thumb-strip {
-            margin-top: 3px;
-            padding: 4px 0;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .thumb-strip-label {
-            font-size: 11px;
-            opacity: 0.7;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .thumb-strip-label-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #ffffff;
-            opacity: 0.7;
-        }
-
-        .thumb-strip-row {
-            margin-top: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            overflow-x: auto;
-            padding-bottom: 4px;
-        }
-
-        .thumb-item {
-            flex: 0 0 auto;
-            width: 80px;
-            height: 110px;
-            border-radius: 10px;
-            background: radial-gradient(circle at 30% 20%, #ffffff, #444444);
-            border: 1px solid rgba(255,255,255,0.4);
-            box-shadow: 0 0 13px rgba(0,0,0,0.9);
-            overflow: hidden;
-            position: relative;
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-        }
-
-        .thumb-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 16px rgba(255,255,255,0.24);
-            border-color: rgba(255,255,255,0.9);
-        }
-
-        .thumb-item img,
-        .thumb-item video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .thumb-type-tag {
-            position: absolute;
-            bottom: 4px;
-            left: 4px;
-            padding: 2px 5px;
-            border-radius: 999px;
-            background: rgba(0,0,0,0.75);
-            font-size: 9px;
-        }
-
-        .thumb-delete {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            width: 18px;
-            height: 18px;
-            border-radius: 999px;
-            background: rgba(0,0,0,0.78);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            cursor: pointer;
-        }
-
-        .thumb-delete:hover {
-            background: rgba(0,0,0,0.95);
-        }
-
-        /* =============================
-           SIDEBAR (LIST OF PLACED OBJECTS)
-           ============================= */
-        .side-panel {
-            position: absolute;
-            top: 72px;
-            right: 12px;
-            width: 224px;
-            bottom: 170px;
-            border-radius: 15px;
-            background: radial-gradient(circle at 0 0, rgba(255,255,255,0.06), rgba(0,0,0,0.95));
-            box-shadow: 0 0 20px rgba(0,0,0,0.85);
-            z-index: 30;
-            padding: 10px 10px 10px 12px;
-            border: 1px solid rgba(255,255,255,0.12);
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            backdrop-filter: blur(12px);
-        }
-
-        .side-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 12px;
-        }
-
-        .side-header span {
-            font-weight: 600;
-        }
-
-        .side-header small {
-            opacity: 0.65;
-        }
-
-        .side-list {
-            flex: 1;
-            overflow-y: auto;
-            padding-right: 4px;
-            padding-top: 3px;
-        }
-
-        .side-item {
-            border-radius: 9px;
-            padding: 6px 7px;
-            background: rgba(0,0,0,0.75);
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            margin-bottom: 5px;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.1s ease;
-        }
-
-        .side-item:hover {
-            background: rgba(255,255,255,0.06);
-            transform: translateY(-1px);
-        }
-
-        .side-thumb {
-            width: 38px;
-            height: 38px;
-            border-radius: 7px;
-            overflow: hidden;
-            background: #222;
-        }
-
-        .side-thumb img,
-        .side-thumb video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .side-meta {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            flex: 1;
-        }
-
-        .side-meta-title {
-            font-size: 11px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .side-meta-sub {
-            font-size: 10px;
-            opacity: 0.6;
-        }
-
-        .side-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
-        }
-
-        .pill-btn {
-            border: none;
-            font-size: 9px;
-            padding: 3px 6px;
-            border-radius: 999px;
-            cursor: pointer;
-            background: rgba(255,255,255,0.08);
-            color: #f3f3f3;
-            transition: background 0.2s ease;
-        }
-
-        .pill-btn:hover {
-            background: rgba(255,255,255,0.19);
-        }
-
-        .pill-btn-danger {
-            background: rgba(255,50,50,0.13);
-            color: #ffcccc;
-        }
-
-        .pill-btn-danger:hover {
-            background: rgba(255,60,60,0.32);
-        }
-
-        /* =============================
-           A-SCENE CONTAINER
-           ============================= */
-        .scene-wrapper {
-            position: absolute;
-            inset: 0;
-            z-index: 10;
-        }
-
-        a-scene {
-            width: 100%;
-            height: 100%;
-        }
-
-        /* Hide default VR button bubble */
-        .a-enter-vr-button,
-        .a-enter-vr {
-            display: none !important;
-        }
-
-        /* =============================
-           RESPONSIVE
-           ============================= */
-        @media (max-width: 768px) {
-            .top-bar {
-                height: 58px;
-                padding-inline: 10px;
-            }
-
-            .bottom-panel {
-                height: 180px;
-            }
-
-            .side-panel {
-                display: none;
-            }
-
-            #status-bar {
-                top: 62px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mixed Reality – Realistic 3D Person</title>
+  <style>
+    body { margin:0; overflow:hidden; font-family: system-ui, sans-serif; background:#000; color:#fff; }
+    #ui {
+      position: absolute; inset:0;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      pointer-events: none; z-index: 10; background: rgba(0,0,0,0.4);
+    }
+    #ui > * { pointer-events: auto; }
+    #upload-area {
+      background: rgba(30,30,50,0.75);
+      padding: 3rem 5rem; border-radius: 1.2rem;
+      border: 3px dashed #4488ff; text-align: center;
+    }
+    button {
+      padding: 1rem 2.5rem; font-size: 1.4rem; margin: 1rem;
+      border: none; border-radius: 1rem; cursor: pointer;
+      transition: all 0.25s;
+    }
+    #enterVR {
+      background: linear-gradient(135deg, #0066ff, #00aaff);
+      color: white; font-weight: 600;
+      opacity: 0.4; pointer-events: none; box-shadow: 0 0 1.5rem rgba(0,100,255,0.4);
+    }
+    #enterVR.active {
+      opacity: 1; pointer-events: auto;
+      box-shadow: 0 0 3rem rgba(0,140,255,0.9); transform: scale(1.06);
+    }
+    #status { margin-top: 1.5rem; font-size: 1.3rem; text-shadow: 0 2px 8px #000; }
+    #fallback {
+      position: absolute; inset: 0; background: rgba(0,0,0,0.92);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; text-align: center; padding: 3rem; display: none;
+    }
+  </style>
 </head>
 <body>
-<div id="app">
 
-    <!-- Top Bar -->
-    <header class="top-bar">
-        <div class="brand">
-            <div class="brand-logo"></div>
-            <div class="brand-text">
-                <div class="brand-title">AR People Room</div>
-                <div class="brand-sub">ضع صورك أو فيديوهات في غرفتك باستخدام AR</div>
-            </div>
-        </div>
-        <div class="top-bar-spacer"></div>
-        <div class="top-bar-buttons">
-            <button id="btnEnterAR" class="btn btn-primary">
-                🚀 تشغيل وضع AR
-            </button>
-            <button id="btnResetAll" class="btn btn-ghost">
-                🗑️ مسح كل العناصر
-            </button>
-            <button id="btnHelp" class="btn-icon" title="مساعدة">
-                ?
-            </button>
-        </div>
-    </header>
+<div id="ui">
+  <div id="upload-area">
+    <h2>Upload a clear photo of a person</h2>
+    <input type="file" id="fileInput" accept="image/*" />
+  </div>
 
-    <!-- Status Bar -->
-    <div id="status-bar">
-        <div id="status-dot"></div>
-        <div id="status-text">جاهز، ارفع صورة أو فيديو ثم ادخل وضع AR.</div>
-    </div>
+  <!-- زر الدخول موجود دائماً لكن معطل حتى يتم التأكد من الشخص -->
+  <button id="enterVR" disabled>Enter Mixed Reality</button>
 
-    <!-- Side Panel: Placed Objects -->
-    <aside class="side-panel" id="sidePanel">
-        <div class="side-header">
-            <span>العناصر في الغرفة</span>
-            <small id="sideCount">0 عنصر</small>
-        </div>
-        <div class="side-list" id="sideList">
-            <!-- items injected here -->
-        </div>
-    </aside>
-
-    <!-- Bottom Panel: Uploads & Thumbnails -->
-    <section class="bottom-panel">
-        <div class="bottom-panel-inner">
-
-            <div class="bottom-panel-header">
-                <div class="bottom-title">
-                    <span class="icon">AR</span>
-                    إدارة الصور والفيديوهات في الغرفة
-                </div>
-                <div class="bottom-actions">
-                    <div class="file-input-wrapper">
-                        <div class="file-input-button">
-                            📷 إضافة صور
-                            <small>(يمكن استخدام PNG أو JPG)</small>
-                        </div>
-                        <input type="file" id="imageInput" accept="image/*" multiple>
-                    </div>
-                    <div class="file-input-wrapper">
-                        <div class="file-input-button">
-                            🎥 إضافة فيديوهات
-                            <small>(يفضل مقاطع جاهزة للتشغيل)</small>
-                        </div>
-                        <input type="file" id="videoInput" accept="video/*" multiple>
-                    </div>
-                </div>
-            </div>
-
-            <div class="thumb-strip">
-                <div class="thumb-strip-label">
-                    <div class="thumb-strip-label-dot"></div>
-                    العناصر المتاحة للإسقاط في الغرفة
-                </div>
-                <div class="thumb-strip-row" id="thumbStrip">
-                    <!-- thumbnails injected here -->
-                </div>
-            </div>
-
-        </div>
-    </section>
-
-    <!-- Scene Wrapper -->
-    <div class="scene-wrapper">
-        <a-scene
-                id="scene"
-                renderer="alpha: true; antialias: true; colorManagement: true;"
-                background="color: #000000"
-                embedded
-                vr-mode-ui="enabled: false"
-                xr-mode-ui="enabled: true"
-        >
-            <a-assets id="assets"></a-assets>
-
-            <!-- Lights (subtle, neutral) -->
-            <a-entity light="type: ambient; intensity: 0.6; color: #ffffff"></a-entity>
-            <a-entity light="type: directional; intensity: 0.9; color: #ffffff"
-                      position="-1 3 -2"></a-entity>
-
-            <!-- Camera Rig -->
-            <a-entity id="rig">
-                <a-camera
-                        id="camera"
-                        position="0 1.6 0"
-                        wasd-controls-enabled="false"
-                        look-controls="pointerLockEnabled: false">
-                </a-camera>
-            </a-entity>
-
-            <!-- VR Controllers with laser pointers (will be visible in VR / AR controllers) -->
-            <a-entity id="rightHand"
-                      hand-controls="hand: right; handModelStyle: lowPoly; color: #39BB82"
-                      laser-controls="hand: right"
-                      raycaster="objects: .interactive; showLine: false">
-            </a-entity>
-
-            <a-entity id="leftHand"
-                      hand-controls="hand: left; handModelStyle: lowPoly; color: #39BB82"
-                      laser-controls="hand: left"
-                      raycaster="objects: .interactive; showLine: false">
-            </a-entity>
-
-            <!-- A visible laser line (attached to each controller via JS for consistent look) -->
-
-        </a-scene>
-    </div>
+  <div id="status"></div>
 </div>
 
-<script>
-    // ================================
-    // GLOBAL VARIABLES & STATE
-    // ================================
-    const scene = document.getElementById('scene');
-    const assets = document.getElementById('assets');
+<div id="fallback">
+  <div>
+    <h2>Immersive-AR (Mixed Reality) not supported</h2>
+    <p>Best on Meta Quest 3 / Pro or ARCore Android + Chrome.<br>
+    Desktop / iOS usually no full passthrough.</p>
+  </div>
+</div>
 
-    const statusTextEl = document.getElementById('status-text');
-    const statusDotEl = document.getElementById('status-dot');
-    const thumbStrip = document.getElementById('thumbStrip');
+<script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/selfie_segmentation.js"></script>
+<script type="module">
+import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/webxr/VRButton.min.js';
 
-    const imageInput = document.getElementById('imageInput');
-    const videoInput = document.getElementById('videoInput');
-    const btnEnterAR = document.getElementById('btnEnterAR');
-    const btnResetAll = document.getElementById('btnResetAll');
-    const btnHelp = document.getElementById('btnHelp');
-    const sideList = document.getElementById('sideList');
-    const sideCount = document.getElementById('sideCount');
+// ────────────────────────────────────────────────
+// Config
+// ────────────────────────────────────────────────
+const REMOVE_BG_API_KEY = 'cmqBnQGpRkW2Z5R8vMbHdxFt';   // ← ضع مفتاح remove.bg هنا
 
-    let isARSupported = false;
-    let isARActive = false;
+let scene, camera, renderer, currentSession;
+let personMesh = null;
+let statusEl = document.getElementById('status');
+let enterBtn = document.getElementById('enterVR');
+let fileInput = document.getElementById('fileInput');
 
-    // Uploaded media metadata
-    const mediaLibrary = [];   // { id, type: 'image'|'video', url, name, assetEl }
-    // Placed entities in room
-    const placedItems = [];    // { id, mediaId, entity, type, name }
+// ────────────────────────────────────────────────
+// Three.js + WebXR init
+// ────────────────────────────────────────────────
+function init() {
+  scene = new THREE.Scene();
+  scene.background = null;
 
-    // For placing objects via tap
-    let selectedMediaForPlacement = null;
+  camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
+  camera.position.set(0, 1.6, 0);
 
-    // For controller interactions
-    const controllers = {}; // right / left state
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
 
-    // ================================
-    // STATUS HELPER
-    // ================================
-    function setStatus(text, type = 'info') {
-        statusTextEl.textContent = text;
-        if (type === 'error') {
-            statusDotEl.style.background = '#ff5252';
-            statusDotEl.style.boxShadow = '0 0 8px rgba(255,82,82,0.9)';
-        } else if (type === 'success') {
-            statusDotEl.style.background = '#18e298';
-            statusDotEl.style.boxShadow = '0 0 8px rgba(24,226,152,0.9)';
-        } else {
-            statusDotEl.style.background = '#f5f5f5';
-            statusDotEl.style.boxShadow = '0 0 8px rgba(255,255,255,0.7)';
+  const amb = new THREE.AmbientLight(0xffffff, 1.2);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xfff8e8, 2.5);
+  dir.position.set(3, 8, 4);
+  scene.add(dir);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+
+// ────────────────────────────────────────────────
+// Check if person exists using MediaPipe Selfie Segmentation
+// ────────────────────────────────────────────────
+async function hasPersonInImage(file) {
+  statusEl.textContent = "Checking for a person in the photo...";
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${file}`;
+      }});
+
+      selfieSegmentation.setOptions({
+        modelSelection: 1,  // 0 = general, 1 = landscape (better for full body)
+      });
+
+      selfieSegmentation.onResults((results) => {
+        if (!results.segmentationMask) {
+          resolve(false);
+          return;
         }
-    }
 
-    // ================================
-    // HELP MODAL (SIMPLE ALERT) - updated text (no mention of background removal)
-    // ================================
-    btnHelp.addEventListener('click', () => {
-        alert(
-            'طريقة الاستخدام:\n\n' +
-            '1. اضغط "تشغيل وضع AR" لبدء العرض (إن كان جهازك يدعم WebXR AR).\n' +
-            '2. ارفع صور أو فيديوهات من الأسفل.\n' +
-            '3. اضغط على الصورة المصغرة، ثم المس أو استخدم يد VR للإشارة ووضع العنصر في الغرفة.\n' +
-            '4. في وضع VR/AR يمكنك استخدام يد التحكم (الليزر) للإمساك وتحريك العناصر وتركها في المكان المطلوب.\n\n' +
-            'ملاحظة: سيتحرك الفيديو تلقائياً ويعمل في حلقة (loop) عند وضعه.'
-        );
+        const mask = results.segmentationMask;
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let personPixels = 0;
+        for (let i = 3; i < imageData.data.length; i += 4) {
+          if (imageData.data[i] > 10) personPixels++;
+        }
+
+        const percentage = personPixels / (canvas.width * canvas.height);
+        resolve(percentage > 0.15);  // أكثر من 15% من الصورة شخص → يعتبر موجود
+      });
+
+      await selfieSegmentation.send({image: img});
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ────────────────────────────────────────────────
+// remove.bg
+// ────────────────────────────────────────────────
+async function removeBackground(file) {
+  statusEl.textContent = "Removing background...";
+
+  const formData = new FormData();
+  formData.append('image_file', file);
+  formData.append('size', 'auto');
+
+  try {
+    const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+      method: 'POST',
+      headers: { 'X-Api-Key': REMOVE_BG_API_KEY },
+      body: formData
     });
 
-    // ================================
-    // AR SUPPORT DETECTION
-    // ================================
-    if (navigator.xr) {
-        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-            isARSupported = supported;
-            if (supported) {
-                setStatus('جهازك يدعم WebXR AR، اضغط "تشغيل وضع AR" للبدء.', 'success');
-            } else {
-                setStatus('WebXR AR غير مدعوم بالكامل، سيتم عرض المشهد بدون passthrough كامل.', 'error');
-            }
-        }).catch(() => {
-            isARSupported = false;
-            setStatus('تعذر فحص دعم AR، قد لا يعمل وضع passthrough.', 'error');
-        });
-    } else {
-        setStatus('متصفحك لا يدعم WebXR، سيتم عرض التجربة في وضع 3D عادي.', 'error');
-    }
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "remove.bg error → fallback to original";
+    return URL.createObjectURL(file);
+  }
+}
 
-    // ================================
-    // ENTER AR - try to request immersive-ar session explicitly for passthrough
-    // ================================
-    btnEnterAR.addEventListener('click', async () => {
-        if (!navigator.xr) {
-            setStatus('متصفحك لا يدعم WebXR.', 'error');
-            return;
-        }
+// ────────────────────────────────────────────────
+// MiDaS depth (simplified – you can expand)
+// ────────────────────────────────────────────────
+async function estimateDepth(imageUrl) {
+  statusEl.textContent = "Estimating depth... (may take seconds)";
 
-        // Try to request an immersive-ar session explicitly: best-effort to enable passthrough.
-        try {
-            if (isARSupported) {
-                const sessionInit = {
-                    optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers', 'dom-overlay'],
-                    // some browsers require DOM overlay origin, skip if not needed
-                };
-                const session = await navigator.xr.requestSession('immersive-ar', sessionInit).catch(err => {
-                    console.warn('requestSession fallback', err);
-                    return null;
-                });
+  // Placeholder: real MiDaS loading needs @tensorflow-models/depth-estimation
+  // For brevity we simulate here – replace with real call as before
+  await new Promise(r => setTimeout(r, 3000)); // simulate delay
 
-                if (session) {
-                    // Attach the session to three.js / A-Frame renderer
-                    if (scene.renderer && scene.renderer.xr) {
-                        await scene.renderer.xr.setSession(session);
-                        isARActive = true;
-                        setStatus('وضع AR نشط (passthrough) — استخدم أدوات التحكم أو المس للشاشة.', 'success');
-                        // Show controllers when session starts
-                        enableControllersForSession();
-                        return;
-                    }
-                }
-            }
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#808080'; ctx.fillRect(0,0,512,512); // fake depth
 
-            // Fallback to A-Frame enterVR (it will pick immersive-ar when available)
-            if (!scene.enterVR) {
-                setStatus('لا يمكن الدخول إلى وضع AR في هذا المتصفح.', 'error');
-                return;
-            }
-            await scene.enterVR();
-            isARActive = true;
-            setStatus('وضع AR/VR نشط، استخدم الليزر في يد التحكم للإشارة والتحريك.', 'success');
-            enableControllersForSession();
-        } catch (err) {
-            console.error(err);
-            setStatus('تعذر الدخول إلى وضع AR، تأكد من المتصفح/الأجهزة.', 'error');
-        }
+  return new Promise(r => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    r(tex);
+  });
+}
+
+// ────────────────────────────────────────────────
+// Upload handler with person check
+// ────────────────────────────────────────────────
+fileInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  enterBtn.disabled = true;
+  enterBtn.classList.remove('active');
+  personMesh = null;
+
+  const hasPerson = await hasPersonInImage(file);
+  if (!hasPerson) {
+    statusEl.textContent = "No person detected in the photo. Please upload a clear photo of a person.";
+    return;
+  }
+
+  let colorUrl = await removeBackground(file);
+  const depthTex = await estimateDepth(colorUrl);
+
+  const colorTex = new THREE.TextureLoader().load(colorUrl, () => {
+    colorTex.colorSpace = THREE.SRGBColorSpace;
+  });
+
+  const geo = new THREE.PlaneGeometry(1.4, 2.0, 128, 128);
+  geo.rotateX(-Math.PI / 2);
+
+  const mat = new THREE.MeshStandardMaterial({
+    map: colorTex,
+    displacementMap: depthTex,
+    displacementScale: 0.35,
+    displacementBias: -0.15,
+    roughness: 0.7,
+    metalness: 0.05,
+    transparent: true,
+    side: THREE.DoubleSide
+  });
+
+  personMesh = new THREE.Mesh(geo, mat);
+  personMesh.scale.set(1, 1, 1);
+
+  // shadow placeholder
+  const shadow = new THREE.Mesh(
+    new THREE.PlaneGeometry(2, 2),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = -0.01;
+  personMesh.add(shadow);
+
+  statusEl.textContent = "Ready! Click 'Enter Mixed Reality'";
+  enterBtn.classList.add('active');
+  enterBtn.disabled = false;
+});
+
+// ────────────────────────────────────────────────
+// Enter VR
+// ────────────────────────────────────────────────
+enterBtn.addEventListener('click', async () => {
+  if (!personMesh) return alert("Process a valid photo first.");
+
+  if (!navigator.xr || !(await navigator.xr.isSessionSupported('immersive-ar'))) {
+    document.getElementById('fallback').style.display = 'flex';
+    return;
+  }
+
+  try {
+    currentSession = await navigator.xr.requestSession('immersive-ar', {
+      optionalFeatures: ['local-floor', 'hand-tracking']
     });
 
-    // ================================
-    // CONTROLLER + LASER + GRAB IMPLEMENTATION
-    // - uses built-in raycaster on controllers to find .interactive elements
-    // - supports grabbing (attach to controller) and release
-    // - draws visible laser line from controller forward and always oriented
-    // ================================
-    function enableControllersForSession() {
-        // create visible laser lines and setup event listeners
-        ['right', 'left'].forEach(hand => {
-            const el = document.getElementById(hand + 'Hand') || document.getElementById(hand + 'Hand'.replace('Hand', ''));
-            // A-Frame entity IDs are rightHand / leftHand in markup
-            const controllerEl = document.getElementById(hand + 'Hand') || document.getElementById(hand === 'right' ? 'rightHand' : 'leftHand');
-            if (!controllerEl) return;
-
-            // Ensure we only add once
-            if (controllers[hand]) return;
-
-            // Add a visible laser line (a thin cylinder or line)
-            const laser = document.createElement('a-entity');
-            laser.setAttribute('geometry', 'primitive: cylinder; radius: 0.002; height: 1');
-            laser.setAttribute('material', 'color: #39BB82; opacity: 0.9; shader: flat');
-            laser.setAttribute('position', '0 0 -0.5');
-            laser.setAttribute('rotation', '90 0 0');
-            laser.setAttribute('class', 'laser-visual');
-            controllerEl.appendChild(laser);
-
-            controllers[hand] = {
-                el: controllerEl,
-                hovered: null,
-                grabbed: null
-            };
-
-            // Raycaster events: maintain hovered element (A-Frame raycaster emits events)
-            controllerEl.addEventListener('raycaster-intersection', (evt) => {
-                if (!evt.detail || !evt.detail.els || !evt.detail.els.length) return;
-                // pick the closest intersected
-                const nearest = evt.detail.els[0];
-                controllers[hand].hovered = nearest;
-                // visual hint: slightly scale
-                if (nearest) nearest.object3D.scale.set(1.02, 1.02, 1.02);
-            });
-
-            controllerEl.addEventListener('raycaster-intersection-cleared', (evt) => {
-                // clear hover
-                if (controllers[hand].hovered) {
-                    try {
-                        controllers[hand].hovered.object3D.scale.set(1, 1, 1);
-                    } catch (e) {}
-                }
-                controllers[hand].hovered = null;
-            });
-
-            // Grip / trigger down to grab
-            controllerEl.addEventListener('triggerdown', (evt) => {
-                const state = controllers[hand];
-                const hovered = state.hovered;
-                if (!hovered) {
-                    setStatus('لم يتم الإشارة إلى أي عنصر.', 'info');
-                    return;
-                }
-                // grab if it's interactive
-                if (hovered.classList.contains('interactive')) {
-                    // store original world transform
-                    state.grabbed = {
-                        el: hovered,
-                        originalParent: hovered.parentElement
-                    };
-                    // compute offset to keep relative pose
-                    const handObj = controllerEl.object3D;
-                    // make sure world matrices are updated
-                    handObj.updateMatrixWorld();
-                    hovered.object3D.updateMatrixWorld();
-
-                    // compute inverse matrix to preserve local transform when reparenting
-                    const inv = new THREE.Matrix4().copy(handObj.matrixWorld).invert();
-                    hovered.object3D.applyMatrix4(inv);
-                    // attach to controller
-                    controllerEl.appendChild(hovered);
-                    setStatus('تم الإمساك بالعنصر. حرّكه ثم ارفع الزناد للإفلات.', 'info');
-
-                    // if the grabbed item is a video, ensure it plays and loops
-                    const mediaId = hovered.getAttribute && hovered.getAttribute('data-media-id');
-                    if (mediaId) {
-                        const media = mediaLibrary.find(m => m.id === mediaId);
-                        if (media && media.type === 'video' && media.assetEl) {
-                            try {
-                                media.assetEl.loop = true;
-                                media.assetEl.muted = false; // allow sound if desired (may be blocked until user gesture)
-                                media.assetEl.play().catch(()=>{ /* autoplay may be blocked */ });
-                            } catch (e) {}
-                        }
-                    }
-                }
-            });
-
-            // Release on triggerup
-            controllerEl.addEventListener('triggerup', (evt) => {
-                const state = controllers[hand];
-                if (!state.grabbed) {
-                    return;
-                }
-                const grabbed = state.grabbed;
-                const grabbedEl = grabbed.el;
-                // compute world matrix of grabbed (since it's child of controller)
-                grabbedEl.object3D.updateMatrixWorld();
-                const worldMat = grabbedEl.object3D.matrixWorld.clone();
-
-                // detach and reparent back to scene
-                scene.appendChild(grabbedEl);
-
-                // apply world matrix to new parent (scene)
-                grabbedEl.object3D.matrix.copy(worldMat);
-                grabbedEl.object3D.matrix.decompose(grabbedEl.object3D.position, grabbedEl.object3D.quaternion, grabbedEl.object3D.scale);
-                grabbedEl.object3D.updateMatrixWorld(true);
-
-                // clear state
-                state.grabbed = null;
-                setStatus('تم إفلات العنصر.', 'success');
-            });
-
-            // keep laser oriented forward always when controller present
-            controllerEl.addEventListener('controllerconnected', () => {
-                // ensure visible laser exists and is long enough
-                // Also listen for controller pose updates to keep laser aligned
-            });
-        });
-    }
-
-    // When session ends, cleanup controllers state
-    if (navigator.xr) {
-        navigator.xr.addEventListener && navigator.xr.addEventListener('end', () => {
-            // simple cleanup
-            Object.keys(controllers).forEach(h => {
-                controllers[h] = null;
-            });
-        });
-    }
-
-    // ================================
-    // HANDLE FILE UPLOADS (IMAGES & VIDEOS)
-    // - ensure videos autoplay & loop reliably by calling play() after load and setting attributes
-    // ================================
-    function handleFiles(files, type) {
-        if (!files || !files.length) return;
-        Array.from(files).forEach((file) => {
-            const url = URL.createObjectURL(file);
-            const id = 'media_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-            const name = file.name || (type === 'image' ? 'صورة' : 'فيديو');
-
-            // Create asset
-            let assetEl;
-            if (type === 'image') {
-                assetEl = document.createElement('img');
-                assetEl.setAttribute('id', id);
-                assetEl.setAttribute('src', url);
-                assetEl.crossOrigin = 'anonymous';
-                assets.appendChild(assetEl);
-            } else {
-                assetEl = document.createElement('video');
-                assetEl.setAttribute('id', id);
-                assetEl.setAttribute('src', url);
-                assetEl.setAttribute('loop', 'true');
-                assetEl.setAttribute('muted', 'true');
-                assetEl.setAttribute('playsinline', 'true');
-                assetEl.crossOrigin = 'anonymous';
-                assetEl.setAttribute('webkit-playsinline', 'true');
-                assets.appendChild(assetEl);
-
-                // Try to play as soon as metadata is loaded (user gesture may be required)
-                assetEl.addEventListener('loadeddata', () => {
-                    try { assetEl.play().catch(()=>{}); } catch(e) {}
-                });
-            }
-
-            // Register in library
-            mediaLibrary.push({
-                id,
-                type,
-                url,
-                name,
-                assetEl
-            });
-
-            // Create thumbnail
-            createThumb(id, type, url, name);
-        });
-
-        updateStatusAfterUpload();
-    }
-
-    function updateStatusAfterUpload() {
-        if (!mediaLibrary.length) {
-            setStatus('ارفع صورة أو فيديو للبدء.', 'info');
-        } else {
-            setStatus('اختر عنصر ثم المس أو استخدم الليزر في يد VR لوضعه في الغرفة.', 'success');
-        }
-    }
-
-    imageInput.addEventListener('change', (e) => {
-        handleFiles(e.target.files, 'image');
-        imageInput.value = '';
+    renderer.xr.setSession(currentSession);
+    currentSession.addEventListener('end', () => {
+      currentSession = null;
+      document.getElementById('ui').style.display = 'flex';
+      if (personMesh) scene.remove(personMesh);
+      enterBtn.classList.remove('active');
+      enterBtn.disabled = true;
     });
 
-    videoInput.addEventListener('change', (e) => {
-        handleFiles(e.target.files, 'video');
-        videoInput.value = '';
-    });
+    document.getElementById('ui').style.display = 'none';
 
-    // ================================
-    // CREATE THUMB UI
-    // ================================
-    function createThumb(id, type, url, name) {
-        const item = document.createElement('div');
-        item.className = 'thumb-item';
-        item.dataset.id = id;
+    personMesh.position.set(0, 0.9, -2.2);
+    scene.add(personMesh);
 
-        let mediaEl;
-        if (type === 'image') {
-            mediaEl = document.createElement('img');
-        } else {
-            mediaEl = document.createElement('video');
-            mediaEl.muted = true;
-            mediaEl.loop = true;
-            mediaEl.autoplay = true;
-            mediaEl.playsInline = true;
-        }
-        mediaEl.src = url;
-        item.appendChild(mediaEl);
+  } catch (err) {
+    alert("Failed to start session\n" + err.message);
+  }
+});
 
-        const tag = document.createElement('div');
-        tag.className = 'thumb-type-tag';
-        tag.textContent = type === 'image' ? 'صورة' : 'فيديو';
-        item.appendChild(tag);
+// Render loop
+function animate() {
+  renderer.setAnimationLoop(() => {
+    renderer.render(scene, camera);
+  });
+}
 
-        const del = document.createElement('div');
-        del.className = 'thumb-delete';
-        del.textContent = '✕';
-        del.addEventListener('click', (ev) => {
-            ev.stopPropagation();
-            deleteMediaFromLibrary(id);
-        });
-        item.appendChild(del);
-
-        item.title = name;
-
-        item.addEventListener('click', () => {
-            selectedMediaForPlacement = id;
-            setStatus('الآن المس في المكان داخل AR أو استخدم الليزر لوضع العنصر هناك.', 'info');
-        });
-
-        thumbStrip.appendChild(item);
-    }
-
-    function deleteMediaFromLibrary(id) {
-        // Remove from library
-        const idx = mediaLibrary.findIndex(m => m.id === id);
-        if (idx >= 0) {
-            // revoke url
-            try { URL.revokeObjectURL(mediaLibrary[idx].url); } catch (e) {}
-            // remove asset element
-            const asset = document.getElementById(id);
-            if (asset && asset.parentNode) {
-                asset.parentNode.removeChild(asset);
-            }
-            mediaLibrary.splice(idx, 1);
-        }
-
-        // Remove thumbnails
-        const thumbs = thumbStrip.querySelectorAll('.thumb-item');
-        thumbs.forEach(t => {
-            if (t.dataset.id === id) {
-                t.remove();
-            }
-        });
-
-        // Also remove placed items that use it
-        const copy = [...placedItems];
-        copy.forEach(pi => {
-            if (pi.mediaId === id) {
-                removePlacedItem(pi.id);
-            }
-        });
-
-        updateSidePanel();
-        updateStatusAfterUpload();
-    }
-
-    // ================================
-    // PLACE OBJECT IN AR SCENE
-    // - when user taps the scene or uses controller "select" event
-    // - items are given class .interactive so controllers can raycast them
-    // - set videos to loop and play when placed
-    // ================================
-    // Place on scene tap/click
-    scene.addEventListener('click', (evt) => {
-        if (!selectedMediaForPlacement) return;
-
-        const media = mediaLibrary.find(m => m.id === selectedMediaForPlacement);
-        if (!media) {
-            setStatus('العنصر المحدد غير موجود، أعد الاختيار.', 'error');
-            selectedMediaForPlacement = null;
-            return;
-        }
-
-        // Place at 2m in front of camera at head height
-        const cameraEl = document.getElementById('camera');
-        if (!cameraEl) return;
-
-        const camObj = cameraEl.object3D;
-        const pos = new THREE.Vector3();
-        const dir = new THREE.Vector3();
-        camObj.getWorldPosition(pos);
-        camObj.getWorldDirection(dir);
-
-        const distance = 2.0; // ~2 متر
-        dir.multiplyScalar(distance);
-        pos.add(dir);
-        // اجعل الارتفاع على مستوى الرأس تقريباً
-        pos.y = 1.6;
-
-        const itemId = 'placed_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-
-        let entity;
-        if (media.type === 'image') {
-            entity = document.createElement('a-plane');
-            entity.setAttribute('src', '#' + media.id);
-            entity.setAttribute('transparent', 'true');
-            entity.setAttribute('width', '0.7');
-            entity.setAttribute('height', '1.6');
-        } else {
-            // use a-plane with material=shader:flat and map the video texture
-            entity = document.createElement('a-video');
-            entity.setAttribute('src', '#' + media.id);
-            entity.setAttribute('width', '0.9');
-            entity.setAttribute('height', '1.6');
-            entity.setAttribute('loop', 'true');
-            entity.setAttribute('autoplay', 'true');
-            // ensure video plays
-            if (media.assetEl) {
-                try { media.assetEl.muted = false; media.assetEl.loop = true; media.assetEl.play().catch(()=>{}); } catch(e){}
-            }
-        }
-
-        entity.setAttribute('id', itemId);
-        entity.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
-        entity.setAttribute('shadow', 'cast: true; receive: false');
-
-        // make interactive for controller raycasting and grabbing
-        entity.classList.add('interactive');
-        entity.setAttribute('data-media-id', media.id);
-
-        // Component to always face camera (billboard)
-        entity.setAttribute('billboard', '');
-
-        // Component to allow simple drag move (mouse/touch)
-        entity.setAttribute('draggable-plane', '');
-
-        // When clicked, select for potential side-panel operations
-        entity.addEventListener('click', (e2) => {
-            e2.stopPropagation();
-            highlightPlacedItem(itemId);
-        });
-
-        scene.appendChild(entity);
-
-        placedItems.push({
-            id: itemId,
-            mediaId: media.id,
-            entity,
-            type: media.type,
-            name: media.name
-        });
-
-        updateSidePanel();
-        setStatus('تم وضع العنصر في الغرفة.', 'success');
-        selectedMediaForPlacement = null;
-    });
-
-    // Additionally, allow controller "select" to place (some controllers send 'triggerdown' etc).
-    // We'll listen to scene-level controller events and place at controller's forward ray intersection (or fixed distance).
-    function setupControllerPlacement() {
-        // Use controller entities in scene (rightHand / leftHand) and listen for 'gripdown' while a media selected to place
-        ['rightHand', 'leftHand'].forEach(id => {
-            const c = document.getElementById(id);
-            if (!c) return;
-            c.addEventListener('triggerdown', (ev) => {
-                // if user selected a media from UI, place it where the controller is pointing
-                if (!selectedMediaForPlacement) return;
-                const media = mediaLibrary.find(m => m.id === selectedMediaForPlacement);
-                if (!media) return;
-
-                // find intersection with floor plane using controller's raycaster
-                const raycasterComp = c.components.raycaster;
-                let position = new THREE.Vector3();
-                if (raycasterComp && raycasterComp.intersections && raycasterComp.intersections.length) {
-                    const inter = raycasterComp.intersections[0];
-                    if (inter && inter.point) {
-                        position.copy(inter.point);
-                    }
-                } else {
-                    // fallback: place a fixed distance forward from controller
-                    const obj = c.object3D;
-                    obj.getWorldPosition(position);
-                    const dir = new THREE.Vector3();
-                    obj.getWorldDirection(dir);
-                    dir.multiplyScalar(1.6);
-                    position.add(dir);
-                    position.y = 1.6;
-                }
-
-                const itemId = 'placed_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-
-                let entity;
-                if (media.type === 'image') {
-                    entity = document.createElement('a-plane');
-                    entity.setAttribute('src', '#' + media.id);
-                    entity.setAttribute('transparent', 'true');
-                    entity.setAttribute('width', '0.7');
-                    entity.setAttribute('height', '1.6');
-                } else {
-                    entity = document.createElement('a-video');
-                    entity.setAttribute('src', '#' + media.id);
-                    entity.setAttribute('width', '0.9');
-                    entity.setAttribute('height', '1.6');
-                    entity.setAttribute('loop', 'true');
-                    entity.setAttribute('autoplay', 'true');
-                    if (media.assetEl) {
-                        try { media.assetEl.muted = false; media.assetEl.loop = true; media.assetEl.play().catch(()=>{}); } catch(e){}
-                    }
-                }
-                entity.setAttribute('id', itemId);
-                entity.setAttribute('position', `${position.x} ${position.y} ${position.z}`);
-                entity.setAttribute('shadow', 'cast: true; receive: false');
-                entity.classList.add('interactive');
-                entity.setAttribute('data-media-id', media.id);
-                entity.setAttribute('billboard', '');
-                entity.setAttribute('draggable-plane', '');
-                entity.addEventListener('click', (e2) => { e2.stopPropagation(); highlightPlacedItem(itemId); });
-
-                scene.appendChild(entity);
-                placedItems.push({
-                    id: itemId,
-                    mediaId: media.id,
-                    entity,
-                    type: media.type,
-                    name: media.name
-                });
-                updateSidePanel();
-                setStatus('تم وضع العنصر عبر يد VR.', 'success');
-                selectedMediaForPlacement = null;
-            });
-        });
-    }
-
-    // Call once to wire up controller placement (entities exist in DOM)
-    setupControllerPlacement();
-
-    // ================================
-    // BILLBOARD COMPONENT
-    // ================================
-    AFRAME.registerComponent('billboard', {
-        tick: function () {
-            const cameraEl = document.querySelector('#camera');
-            if (!cameraEl) return;
-            const cameraObj = cameraEl.object3D;
-            const camPos = new THREE.Vector3();
-            cameraObj.getWorldPosition(camPos);
-            // Make plane face the camera in XZ-plane but keep upright
-            const obj = this.el.object3D;
-            const pos = new THREE.Vector3();
-            obj.getWorldPosition(pos);
-            const lookVec = new THREE.Vector3().subVectors(camPos, pos);
-            lookVec.y = 0; // keep upright
-            if (lookVec.lengthSq() === 0) return;
-            obj.lookAt(new THREE.Vector3(pos.x + lookVec.x, pos.y, pos.z + lookVec.z));
-        }
-    });
-
-    // ================================
-    // DRAGGABLE COMPONENT (MOVE ON HORIZONTAL PLANE)
-    // (keeps previous mouse/touch behavior)
-    // ================================
-    AFRAME.registerComponent('draggable-plane', {
-        init: function () {
-            this.dragging = false;
-            this.startMouse = new THREE.Vector2();
-            this.raycaster = new THREE.Raycaster();
-            this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0); // horizontal plane
-            this.offset = new THREE.Vector3();
-            this.startPos = new THREE.Vector3();
-            const el = this.el;
-
-            el.addEventListener('mousedown', this.onMouseDown.bind(this));
-            window.addEventListener('mousemove', this.onMouseMove.bind(this));
-            window.addEventListener('mouseup', this.onMouseUp.bind(this));
-            el.addEventListener('touchstart', this.onTouchStart.bind(this));
-            window.addEventListener('touchmove', this.onTouchMove.bind(this));
-            window.addEventListener('touchend', this.onTouchEnd.bind(this));
-        },
-        onMouseDown: function (evt) {
-            evt.preventDefault();
-            this.beginDrag(evt.clientX, evt.clientY);
-        },
-        onMouseMove: function (evt) {
-            if (!this.dragging) return;
-            evt.preventDefault();
-            this.dragTo(evt.clientX, evt.clientY);
-        },
-        onMouseUp: function () {
-            if (!this.dragging) return;
-            this.dragging = false;
-            setStatus('تم تثبيت العنصر في موقعه الجديد.', 'success');
-        },
-        onTouchStart: function (evt) {
-            if (!evt.touches || !evt.touches.length) return;
-            const t = evt.touches[0];
-            this.beginDrag(t.clientX, t.clientY);
-        },
-        onTouchMove: function (evt) {
-            if (!this.dragging || !evt.touches || !evt.touches.length) return;
-            const t = evt.touches[0];
-            this.dragTo(t.clientX, t.clientY);
-        },
-        onTouchEnd: function () {
-            if (!this.dragging) return;
-            this.dragging = false;
-            setStatus('تم تثبيت العنصر في موقعه الجديد.', 'success');
-        },
-        beginDrag: function (clientX, clientY) {
-            this.dragging = true;
-            this.startMouse.set(clientX, clientY);
-            this.startPos.copy(this.el.object3D.position);
-            setStatus('اسحب لتحريك الشخص في الغرفة.', 'info');
-        },
-        dragTo: function (clientX, clientY) {
-            const cameraEl = document.querySelector('#camera');
-            if (!cameraEl) return;
-            const camera = cameraEl.getObject3D('camera');
-            if (!camera) return;
-
-            const mouse = new THREE.Vector2();
-            mouse.x = (clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
-
-            this.raycaster.setFromCamera(mouse, camera);
-
-            const intersection = new THREE.Vector3();
-            if (this.raycaster.ray.intersectPlane(this.plane, intersection)) {
-                // keep the same height, move in x-z
-                const pos = this.el.object3D.position;
-                pos.set(intersection.x, pos.y, intersection.z);
-            }
-        }
-    });
-
-    // ================================
-    // SIDE PANEL MANAGEMENT (LIST OF PLACED ITEMS)
-    // ================================
-    function updateSidePanel() {
-        sideList.innerHTML = '';
-        placedItems.forEach((item) => {
-            const media = mediaLibrary.find(m => m.id === item.mediaId);
-            if (!media) return;
-
-            const row = document.createElement('div');
-            row.className = 'side-item';
-            row.dataset.id = item.id;
-
-            const thumb = document.createElement('div');
-            thumb.className = 'side-thumb';
-
-            let mEl;
-            if (item.type === 'image') {
-                mEl = document.createElement('img');
-            } else {
-                mEl = document.createElement('video');
-                mEl.autoplay = true;
-                mEl.muted = true;
-                mEl.loop = true;
-                mEl.playsInline = true;
-            }
-            mEl.src = media.url;
-            thumb.appendChild(mEl);
-
-            const meta = document.createElement('div');
-            meta.className = 'side-meta';
-
-            const title = document.createElement('div');
-            title.className = 'side-meta-title';
-            title.textContent = media.name;
-            meta.appendChild(title);
-
-            const sub = document.createElement('div');
-            sub.className = 'side-meta-sub';
-            sub.textContent = item.type === 'image' ? 'صورة ثابتة' : 'فيديو في الغرفة';
-            meta.appendChild(sub);
-
-            const actions = document.createElement('div');
-            actions.className = 'side-actions';
-
-            const btnFocus = document.createElement('button');
-            btnFocus.className = 'pill-btn';
-            btnFocus.textContent = '👁️ عرض';
-            btnFocus.addEventListener('click', (ev) => {
-                ev.stopPropagation();
-                focusOnItem(item.id);
-            });
-
-            const btnDelete = document.createElement('button');
-            btnDelete.className = 'pill-btn pill-btn-danger';
-            btnDelete.textContent = 'حذف';
-            btnDelete.addEventListener('click', (ev) => {
-                ev.stopPropagation();
-                removePlacedItem(item.id);
-            });
-
-            actions.appendChild(btnFocus);
-            actions.appendChild(btnDelete);
-
-            row.appendChild(thumb);
-            row.appendChild(meta);
-            row.appendChild(actions);
-
-            row.addEventListener('click', () => {
-                highlightPlacedItem(item.id);
-            });
-
-            sideList.appendChild(row);
-        });
-
-        sideCount.textContent = placedItems.length + ' عنصر';
-    }
-
-    function highlightPlacedItem(id) {
-        placedItems.forEach((item) => {
-            if (!item.entity) return;
-            const isTarget = item.id === id;
-            item.entity.setAttribute('material', 'opacity: 1;');
-            if (isTarget) {
-                item.entity.setAttribute('animation__pulse', {
-                    property: 'scale',
-                    from: '1 1 1',
-                    to: '1.05 1.05 1.05',
-                    dur: 200,
-                    dir: 'alternate',
-                    loop: 3
-                });
-            }
-        });
-        setStatus('تم تحديد العنصر، يمكنك تحريكه بالماوس/اللمس أو الإمساك به بيد VR.', 'info');
-    }
-
-    function focusOnItem(id) {
-        const item = placedItems.find(p => p.id === id);
-        if (!item || !item.entity) return;
-
-        const cameraEl = document.getElementById('camera');
-        if (!cameraEl) return;
-
-        // Move camera rig to look at item (in non-AR mode mainly)
-        const rig = document.getElementById('rig');
-        const entPos = new THREE.Vector3();
-        item.entity.object3D.getWorldPosition(entPos);
-
-        // Place camera rig a bit behind original position and look at the entity
-        rig.object3D.position.set(entPos.x, rig.object3D.position.y, entPos.z + 2.0);
-
-        const camObj = cameraEl.object3D;
-        camObj.lookAt(entPos);
-        setStatus('تم تحريك الكاميرا لمشاهدة العنصر.', 'success');
-    }
-
-    function removePlacedItem(id) {
-        const idx = placedItems.findIndex(p => p.id === id);
-        if (idx < 0) return;
-        const item = placedItems[idx];
-        if (item.entity && item.entity.parentNode) {
-            item.entity.parentNode.removeChild(item.entity);
-        }
-        placedItems.splice(idx, 1);
-        updateSidePanel();
-        setStatus('تم حذف العنصر من الغرفة.', 'success');
-    }
-
-    // ================================
-    // RESET ALL
-    // ================================
-    btnResetAll.addEventListener('click', () => {
-        if (!confirm('هل أنت متأكد من مسح جميع العناصر من الغرفة؟')) return;
-        // Remove placed items
-        while (placedItems.length) {
-            const item = placedItems.pop();
-            if (item.entity && item.entity.parentNode) {
-                item.entity.parentNode.removeChild(item.entity);
-            }
-        }
-        updateSidePanel();
-        setStatus('تم مسح جميع العناصر من الغرفة.', 'success');
-    });
-
-    // ================================
-    // INITIAL STATUS
-    // ================================
-    window.addEventListener('load', () => {
-        setStatus('جاهز، ابدأ برفع صورة أو فيديو ثم ادخل وضع AR.', 'info');
-        // enable controllers wiring (in case they were present)
-        enableControllersForSession();
-    });
+init();
+animate();
 
 </script>
 </body>
