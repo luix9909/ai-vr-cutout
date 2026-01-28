@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mixed Reality – Realistic 3D Person</title>
+  <title>Mixed Reality – Fast 3D Person</title>
   <style>
     body { margin:0; overflow:hidden; font-family: system-ui, sans-serif; background:#000; color:#fff; }
     #ui {
@@ -14,28 +14,28 @@
     #ui > * { pointer-events: auto; }
     #upload-area {
       background: rgba(30,30,50,0.75);
-      padding: 3rem 5rem; border-radius: 1.2rem;
+      padding: 2.5rem 4.5rem; border-radius: 1rem;
       border: 3px dashed #4488ff; text-align: center;
     }
     button {
       padding: 1rem 2.5rem; font-size: 1.4rem; margin: 1rem;
       border: none; border-radius: 1rem; cursor: pointer;
-      transition: all 0.25s;
+      transition: all 0.2s;
     }
     #enterVR {
       background: linear-gradient(135deg, #0066ff, #00aaff);
       color: white; font-weight: 600;
-      opacity: 0.4; pointer-events: none; box-shadow: 0 0 1.5rem rgba(0,100,255,0.4);
+      opacity: 0.45; pointer-events: none; box-shadow: 0 0 1.2rem rgba(0,100,255,0.3);
     }
     #enterVR.active {
       opacity: 1; pointer-events: auto;
-      box-shadow: 0 0 3rem rgba(0,140,255,0.9); transform: scale(1.06);
+      box-shadow: 0 0 2.5rem rgba(0,140,255,0.8); transform: scale(1.05);
     }
-    #status { margin-top: 1.5rem; font-size: 1.3rem; text-shadow: 0 2px 8px #000; }
+    #status { margin-top: 1.2rem; font-size: 1.25rem; text-shadow: 0 2px 6px #000; }
     #fallback {
-      position: absolute; inset: 0; background: rgba(0,0,0,0.92);
+      position: absolute; inset: 0; background: rgba(0,0,0,0.9);
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.5rem; text-align: center; padding: 3rem; display: none;
+      font-size: 1.4rem; text-align: center; padding: 2rem; display: none;
     }
   </style>
 </head>
@@ -43,11 +43,10 @@
 
 <div id="ui">
   <div id="upload-area">
-    <h2>Upload a clear photo of a person</h2>
+    <h2>Upload photo of a person</h2>
     <input type="file" id="fileInput" accept="image/*" />
   </div>
 
-  <!-- زر الدخول موجود دائماً لكن معطل حتى يتم التأكد من الشخص -->
   <button id="enterVR" disabled>Enter Mixed Reality</button>
 
   <div id="status"></div>
@@ -55,30 +54,25 @@
 
 <div id="fallback">
   <div>
-    <h2>Immersive-AR (Mixed Reality) not supported</h2>
-    <p>Best on Meta Quest 3 / Pro or ARCore Android + Chrome.<br>
-    Desktop / iOS usually no full passthrough.</p>
+    <h2>Mixed Reality not supported</h2>
+    <p>Use Meta Quest browser or ARCore Android + Chrome for best result.</p>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/selfie_segmentation.js"></script>
 <script type="module">
-import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/webxr/VRButton.min.js';
-
 // ────────────────────────────────────────────────
-// Config
-// ────────────────────────────────────────────────
-const REMOVE_BG_API_KEY = 'cmqBnQGpRkW2Z5R8vMbHdxFt';   // ← ضع مفتاح remove.bg هنا
+const REMOVE_BG_API_KEY = 'cmqBnQGpRkW2Z5R8vMbHdxFt'; // ضع مفتاحك هنا
 
 let scene, camera, renderer, currentSession;
 let personMesh = null;
-let statusEl = document.getElementById('status');
-let enterBtn = document.getElementById('enterVR');
-let fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+const enterBtn = document.getElementById('enterVR');
+const fileInput = document.getElementById('fileInput');
 
 // ────────────────────────────────────────────────
-// Three.js + WebXR init
+// Init Three.js
 // ────────────────────────────────────────────────
 function init() {
   scene = new THREE.Scene();
@@ -93,11 +87,10 @@ function init() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  const amb = new THREE.AmbientLight(0xffffff, 1.2);
-  scene.add(amb);
-  const dir = new THREE.DirectionalLight(0xfff8e8, 2.5);
-  dir.position.set(3, 8, 4);
-  scene.add(dir);
+  scene.add(new THREE.AmbientLight(0xffffff, 1.3));
+  const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
+  dirLight.position.set(4, 10, 5);
+  scene.add(dirLight);
 
   window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -107,105 +100,94 @@ function init() {
 }
 
 // ────────────────────────────────────────────────
-// Check if person exists using MediaPipe Selfie Segmentation
+// Super fast person check with MediaPipe Selfie Segmentation
 // ────────────────────────────────────────────────
-async function hasPersonInImage(file) {
-  statusEl.textContent = "Checking for a person in the photo...";
+async function hasPerson(file) {
+  statusEl.textContent = "Checking photo...";
 
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const img = new Image();
     img.onload = async () => {
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = img.width > 512 ? 512 : img.width;  // downscale for speed
+      canvas.height = img.height * (canvas.width / img.width);
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      const selfieSegmentation = new SelfieSegmentation({locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${file}`;
-      }});
+      const selfie = new SelfieSegmentation({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${f}`});
 
-      selfieSegmentation.setOptions({
-        modelSelection: 1,  // 0 = general, 1 = landscape (better for full body)
-      });
+      selfie.setOptions({ modelSelection: 1 }); // 1 = landscape/full body better
 
-      selfieSegmentation.onResults((results) => {
-        if (!results.segmentationMask) {
-          resolve(false);
-          return;
-        }
+      selfie.onResults(results => {
+        if (!results.segmentationMask) return resolve(false);
 
-        const mask = results.segmentationMask;
         ctx.globalCompositeOperation = 'source-in';
-        ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        let personPixels = 0;
-        for (let i = 3; i < imageData.data.length; i += 4) {
-          if (imageData.data[i] > 10) personPixels++;
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let count = 0;
+        for (let i = 3; i < data.length; i += 4) {
+          if (data[i] > 30) count++;  // threshold a bit higher for cleaner detection
         }
 
-        const percentage = personPixels / (canvas.width * canvas.height);
-        resolve(percentage > 0.15);  // أكثر من 15% من الصورة شخص → يعتبر موجود
+        const percent = count / (canvas.width * canvas.height);
+        resolve(percent > 0.12);  // ~12% → sensitive but fast & reliable
       });
 
-      await selfieSegmentation.send({image: img});
+      await selfie.send({image: canvas});
     };
     img.src = URL.createObjectURL(file);
   });
 }
 
 // ────────────────────────────────────────────────
-// remove.bg
+// remove.bg (only if person exists)
 // ────────────────────────────────────────────────
-async function removeBackground(file) {
+async function removeBg(file) {
   statusEl.textContent = "Removing background...";
 
   const formData = new FormData();
   formData.append('image_file', file);
-  formData.append('size', 'auto');
+  formData.append('size', 'medium'); // faster than 'auto' or 'hd'
 
   try {
-    const res = await fetch('https://api.remove.bg/v1.0/removebg', {
+    const r = await fetch('https://api.remove.bg/v1.0/removebg', {
       method: 'POST',
       headers: { 'X-Api-Key': REMOVE_BG_API_KEY },
       body: formData
     });
-
-    if (!res.ok) throw new Error(await res.text());
-    const blob = await res.blob();
+    if (!r.ok) throw new Error();
+    const blob = await r.blob();
     return URL.createObjectURL(blob);
-  } catch (err) {
-    console.error(err);
-    statusEl.textContent = "remove.bg error → fallback to original";
+  } catch {
+    statusEl.textContent = "remove.bg failed → using original";
     return URL.createObjectURL(file);
   }
 }
 
 // ────────────────────────────────────────────────
-// MiDaS depth (simplified – you can expand)
+// Fast fake depth (real MiDaS is slow first time → disabled for speed)
 // ────────────────────────────────────────────────
-async function estimateDepth(imageUrl) {
-  statusEl.textContent = "Estimating depth... (may take seconds)";
-
-  // Placeholder: real MiDaS loading needs @tensorflow-models/depth-estimation
-  // For brevity we simulate here – replace with real call as before
-  await new Promise(r => setTimeout(r, 3000)); // simulate delay
-
+function createFastDepthTexture() {
+  const size = 256;
   const canvas = document.createElement('canvas');
-  canvas.width = 512; canvas.height = 512;
+  canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#808080'; ctx.fillRect(0,0,512,512); // fake depth
 
-  return new Promise(r => {
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.needsUpdate = true;
-    r(tex);
-  });
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.4, '#c0c0c0');
+  grad.addColorStop(1, '#404040');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
 }
 
 // ────────────────────────────────────────────────
-// Upload handler with person check
+// Upload → fast path
 // ────────────────────────────────────────────────
 fileInput.addEventListener('change', async e => {
   const file = e.target.files[0];
@@ -214,47 +196,48 @@ fileInput.addEventListener('change', async e => {
   enterBtn.disabled = true;
   enterBtn.classList.remove('active');
   personMesh = null;
+  statusEl.textContent = "";
 
-  const hasPerson = await hasPersonInImage(file);
-  if (!hasPerson) {
-    statusEl.textContent = "No person detected in the photo. Please upload a clear photo of a person.";
+  const hasP = await hasPerson(file);
+
+  if (!hasP) {
+    statusEl.textContent = "No person detected. Upload a clear photo with a person.";
     return;
   }
 
-  let colorUrl = await removeBackground(file);
-  const depthTex = await estimateDepth(colorUrl);
+  const colorUrl = await removeBg(file);
+  const depthTex = createFastDepthTexture();
 
   const colorTex = new THREE.TextureLoader().load(colorUrl, () => {
     colorTex.colorSpace = THREE.SRGBColorSpace;
   });
 
-  const geo = new THREE.PlaneGeometry(1.4, 2.0, 128, 128);
+  const geo = new THREE.PlaneGeometry(1.3, 1.9, 64, 64); // less segments = faster
   geo.rotateX(-Math.PI / 2);
 
   const mat = new THREE.MeshStandardMaterial({
     map: colorTex,
     displacementMap: depthTex,
-    displacementScale: 0.35,
-    displacementBias: -0.15,
-    roughness: 0.7,
-    metalness: 0.05,
+    displacementScale: 0.22,    // smaller range = less glitchy with fake depth
+    displacementBias: -0.08,
+    roughness: 0.75,
+    metalness: 0.03,
     transparent: true,
     side: THREE.DoubleSide
   });
 
   personMesh = new THREE.Mesh(geo, mat);
-  personMesh.scale.set(1, 1, 1);
 
-  // shadow placeholder
+  // quick shadow
   const shadow = new THREE.Mesh(
-    new THREE.PlaneGeometry(2, 2),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 })
+    new THREE.PlaneGeometry(2.2, 2.2),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
   );
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = -0.01;
+  shadow.position.y = -0.005;
   personMesh.add(shadow);
 
-  statusEl.textContent = "Ready! Click 'Enter Mixed Reality'";
+  statusEl.textContent = "Ready in seconds! Click to enter Mixed Reality";
   enterBtn.classList.add('active');
   enterBtn.disabled = false;
 });
@@ -263,7 +246,7 @@ fileInput.addEventListener('change', async e => {
 // Enter VR
 // ────────────────────────────────────────────────
 enterBtn.addEventListener('click', async () => {
-  if (!personMesh) return alert("Process a valid photo first.");
+  if (!personMesh) return alert("Upload & wait for person check first.");
 
   if (!navigator.xr || !(await navigator.xr.isSessionSupported('immersive-ar'))) {
     document.getElementById('fallback').style.display = 'flex';
@@ -272,29 +255,29 @@ enterBtn.addEventListener('click', async () => {
 
   try {
     currentSession = await navigator.xr.requestSession('immersive-ar', {
-      optionalFeatures: ['local-floor', 'hand-tracking']
+      optionalFeatures: ['local-floor']
     });
 
     renderer.xr.setSession(currentSession);
     currentSession.addEventListener('end', () => {
       currentSession = null;
       document.getElementById('ui').style.display = 'flex';
-      if (personMesh) scene.remove(personMesh);
+      scene.remove(personMesh);
       enterBtn.classList.remove('active');
       enterBtn.disabled = true;
     });
 
     document.getElementById('ui').style.display = 'none';
 
-    personMesh.position.set(0, 0.9, -2.2);
+    personMesh.position.set(0, 0.9, -2.0);
     scene.add(personMesh);
 
   } catch (err) {
-    alert("Failed to start session\n" + err.message);
+    alert("Start failed\n" + err.message);
   }
 });
 
-// Render loop
+// ────────────────────────────────────────────────
 function animate() {
   renderer.setAnimationLoop(() => {
     renderer.render(scene, camera);
