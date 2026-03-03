@@ -1,233 +1,370 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Fast MR – 3D Person Preview</title>
-  <style>
-    body { margin:0; overflow:hidden; font-family: system-ui,sans-serif; background:#000; color:#fff; }
-    #ui { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; pointer-events:none; z-index:10; background:rgba(0,0,0,0.45); }
-    #ui > * { pointer-events:auto; }
-    #upload-area { background:rgba(25,25,45,0.8); padding:2rem 4rem; border-radius:1rem; border:3px dashed #b600ee; text-align:center; }
-    button { padding:1rem 2.2rem; font-size:1.35rem; margin:1rem; border:none; border-radius:0.9rem; cursor:pointer; transition:all 0.18s; }
-    #enterVR { background:linear-gradient(135deg,#b600ee,#b600ee); color:white; font-weight:600; opacity:0.5; pointer-events:none; box-shadow:0 0 1rem rgba(0,90,255,0.4); }
-    #enterVR.active { opacity:1; pointer-events:auto; box-shadow:0 0 2.2rem rgba(0,130,255,0.85); transform:scale(1.04); }
-    #status { margin-top:1rem; font-size:1.2rem; text-shadow:0 2px 5px #000; }
-    #fallback { position:absolute; inset:0; background:rgba(0,0,0,0.9); display:flex; align-items:center; justify-content:center; font-size:1.4rem; text-align:center; padding:2rem; display:none; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نديم الشعر</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: #0a1f3a;
+            color: #f0e8d0;
+            min-height: 100vh;
+            direction: rtl;
+            padding-bottom: 80px; /* مساحة للفوتر الثابت */
+        }
+
+        header {
+            background: #051427;
+            border-bottom: 2px solid #c4a97c;
+            padding: 12px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+
+        .logo {
+            font-family: 'Amiri', serif;
+            font-size: 2.3rem;
+            color: #c4a97c;
+            text-shadow: 0 0 10px rgba(196, 169, 124, 0.3);
+        }
+
+        .poets-buttons {
+            display: flex;
+            gap: 18px;
+        }
+
+        .poet-btn {
+            background: rgba(196, 169, 124, 0.1);
+            color: #c4a97c;
+            border: 1px solid #c4a97c;
+            padding: 8px 22px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .poet-btn:hover, .poet-btn.active {
+            background: #c4a97c;
+            color: #051427;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 30px;
+            padding: 30px 30px 60px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .poems-sidebar {
+            flex: 0 0 320px;
+            min-width: 320px;
+        }
+
+        .poem-preview-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .poem-preview {
+            background: rgba(10, 31, 58, 0.6);
+            border: 1px solid #c4a97c;
+            border-radius: 10px;
+            padding: 18px 22px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .poem-preview:hover, .poem-preview.active {
+            background: rgba(196, 169, 124, 0.18);
+            transform: translateX(6px);
+            border-color: #d4c080;
+        }
+
+        .poem-preview h3 {
+            color: #c4a97c;
+            font-family: 'Amiri', serif;
+            font-size: 1.55rem;
+            margin-bottom: 6px;
+        }
+
+        .poem-preview p {
+            color: #d0c0a0;
+            font-size: 0.98rem;
+            line-height: 1.5;
+        }
+
+        .poem-viewer {
+            flex: 1;
+            position: relative;
+        }
+
+        .poem-container {
+            background: #051427;
+            border: 2px solid #c4a97c;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            min-height: 500px;
+            display: none;
+        }
+
+        /* ألوان خلفية مختلفة للقصيدة فقط */
+        .poem-container.theme1 { background: #0f2a47; border-color: #a68a5c; }
+        .poem-container.theme2 { background: #1a0f2e; border-color: #b8975e; }
+        .poem-container.theme3 { background: #001f3f; border-color: #d4af37; }
+        .poem-container.theme4 { background: #0a1a2a; border-color: #c19a6b; }
+        .poem-container.theme5 { background: #112233; border-color: #e0c080; }
+
+        .poem-header {
+            background: linear-gradient(90deg, #051427 0%, #0a1f3a 100%);
+            padding: 28px 30px;
+            text-align: center;
+            border-bottom: 2px solid #c4a97c;
+        }
+
+        .poem-title {
+            font-family: 'Amiri', serif;
+            font-size: 3.1rem;
+            color: #d4c080;
+            margin-bottom: 10px;
+        }
+
+        .poem-verses {
+            padding: 40px 45px;
+        }
+
+        .verse {
+            font-family: 'Amiri', serif;
+            font-size: 2.05rem;
+            line-height: 2.45;
+            text-align: right;
+            margin-bottom: 28px;
+            padding: 10px 25px;
+            border-right: 5px solid #d4c080;
+            border-radius: 6px;
+            background: rgba(212, 192, 128, 0.07);
+        }
+
+        .poem-description {
+            padding: 0 45px 40px;
+            font-size: 1.18rem;
+            line-height: 1.95;
+            text-align: center;
+            color: #d0c0a0;
+        }
+
+        .poem-color-options {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            display: flex;
+            flex-direction: row;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .color-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+            transition: all 0.3s;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.2);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.7);
+        }
+
+        .color1 { background: #0f2a47; }
+        .color2 { background: #1a0f2e; }
+        .color3 { background: #001f3f; }
+        .color4 { background: #0a1a2a; }
+        .color5 { background: #112233; }
+
+        footer {
+            background: #051427;
+            border-top: 2px solid #c4a97c;
+            text-align: center;
+            padding: 18px;
+            color: #b8a070;
+            font-size: 1rem;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 900;
+            box-shadow: 0 -3px 12px rgba(0,0,0,0.4);
+        }
+
+        @media (max-width: 992px) {
+            .main-content {
+                flex-direction: column;
+                padding: 20px;
+            }
+            .poems-sidebar {
+                flex: none;
+                min-width: auto;
+            }
+            .poem-color-options {
+                left: 50%;
+                transform: translateX(-50%);
+                top: auto;
+                bottom: 100px;
+                background: rgba(0,0,0,0.5);
+                padding: 12px 20px;
+                border-radius: 50px;
+            }
+        }
+    </style>
 </head>
 <body>
 
-<div id="ui">
-  <div id="upload-area">
-    <h2>Upload person photo</h2>
-    <input type="file" id="fileInput" accept="image/*" />
-  </div>
-  <button id="enterVR" disabled>Enter vr mode</button>
-  <div id="status"></div>
-</div>
+    <header>
+        <div class="logo">نديم الشعر</div>
+        <div class="poets-buttons">
+            <button class="poet-btn active" data-poet="all">جميع القصائد</button>
+            <button class="poet-btn" data-poet="salman">سلمان الأحمري</button>
+            <button class="poet-btn" data-poet="sal">سلمان</button>
+        </div>
+    </header>
 
-<div id="fallback">
-  <div>
-    <h2>Mixed Reality not available here</h2>
-    <p>Best on Quest browser or Android ARCore + Chrome</p>
-  </div>
-</div>
+    <div class="main-content">
+        <div class="poems-sidebar">
+            <div class="poem-preview-list" id="poemsList"></div>
+        </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/selfie_segmentation.js"></script>
-<script type="module">
-// ────────────────────────────────────────────────
-const REMOVE_BG_API_KEY = 'cmqBnQGpRkW2Z5R8vMbHdxFt'; // ضع مفتاح remove.bg الحقيقي هنا
+        <div class="poem-viewer">
+            <div id="poemDisplay"></div>
+        </div>
+    </div>
 
-let scene, camera, renderer, currentSession;
-let personMesh = null;
-const status = document.getElementById('status');
-const btnVR = document.getElementById('enterVR');
-const inputFile = document.getElementById('fileInput');
+    <footer>
+        <p>© 2026 نديم الشعر | جميع الحقوق محفوظة لـ waspbyte</p>
+    </footer>
 
-// ────────────────────────────────────────────────
-function initThree() {
-  scene = new THREE.Scene(); scene.background = null;
-  camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.08, 180);
-  camera.position.set(0,1.62,0);
+    <script>
+        const allPoems = [
+            {
+                poet: "salman",
+                name: "ليل الغربة",
+                description: "حنين يعتصر القلب كلما طال البعد عن الأهل والديار، ويبقى الأمل معلقاً بين الذكرى واللقاء المرتقب.",
+                verses: [
+                    "يا دارُ أين أنتِ من عيني الثكلى",
+                    "تركتكِ وتركتُ معكِ نصف روحي",
+                    "في كل زاوية أراكِ وفي كل نسمة أسمع صوتكِ",
+                    "غربةٌ تقتلني وأنتِ بعيدةٌ عن ناظري",
+                    "والقلب يئنُّ من الشوق المستعر",
+                    "ينتظر لحظةَ عودةٍ تُعيدُ له الحياة",
+                    "فإن طال الفراقُ طالَ العذابُ",
+                    "وإن قرُب اللقاءُ ذابَ الهمُّ والكآبة"
+                ]
+            },
+            {
+                poet: "sal",
+                name: "صوت الريح",
+                description: "الريح تحمل في طياتها ذكريات وأسراراً، تحدثنا عن الماضي والمستقبل.",
+                verses: [
+                    "تأتي الريح فتحدثني عن أيام مضت",
+                    "تحمل عطر الورد والأرض بعد المطر",
+                    "في صوتها حكايات لم تُروَ بعد",
+                    "وأنا أصغي لها كطفلٍ يسمع حكاية قبل النوم",
+                    "تهمس في أذني بأسرار الغيب",
+                    "وتذكرني بأن الحياة رحلة",
+                    "فاسمعها جيداً قبل أن تذهب",
+                    "فالريح لا تعود إلا برسالة جديدة"
+                ]
+            }
+            // أضف باقي القصائد هنا إذا أردت
+        ];
 
-  renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-  renderer.setPixelRatio(devicePixelRatio*0.92); // slight quality trade for speed
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.xr.enabled = true;
-  document.body.appendChild(renderer.domElement);
+        const poemsList = document.getElementById('poemsList');
+        const poemDisplay = document.getElementById('poemDisplay');
 
-  scene.add(new THREE.AmbientLight(0xffffff, 1.4));
-  const sun = new THREE.DirectionalLight(0xffffe8, 2.8);
-  sun.position.set(5,12,6); scene.add(sun);
+        function renderPoems(poetFilter = 'all') {
+            poemsList.innerHTML = '';
+            const filtered = poetFilter === 'all' 
+                ? allPoems 
+                : allPoems.filter(p => p.poet === poetFilter);
 
-  addEventListener('resize', () => {
-    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-  });
-}
+            filtered.forEach(poem => {
+                const preview = document.createElement('div');
+                preview.className = 'poem-preview';
+                preview.innerHTML = `
+                    <h3>${poem.name}</h3>
+                    <p>${poem.description.substring(0, 90)}...</p>
+                `;
+                preview.onclick = () => showPoem(poem, preview);
+                poemsList.appendChild(preview);
+            });
+        }
 
-// ────────────────────────────────────────────────
-// Fast person check (~200–500 ms)
-// ────────────────────────────────────────────────
-async function quickPersonCheck(file) {
-  status.textContent = "Scanning photo...";
+        function showPoem(poem, clickedPreview) {
+            document.querySelectorAll('.poem-preview').forEach(el => el.classList.remove('active'));
+            clickedPreview.classList.add('active');
 
-  return new Promise(r => {
-    const img = new Image();
-    img.onload = async () => {
-      const cw = Math.min(448, img.width); // small size = fast
-      const ch = img.height * (cw / img.width);
-      const cv = document.createElement('canvas');
-      cv.width = cw; cv.height = ch;
-      const ctx = cv.getContext('2d');
-      ctx.drawImage(img, 0,0,cw,ch);
+            poemDisplay.innerHTML = `
+                <div class="poem-container theme3" id="currentPoem">
+                    <div class="poem-color-options">
+                        <div class="color-btn color1" data-theme="theme1"></div>
+                        <div class="color-btn color2" data-theme="theme2"></div>
+                        <div class="color-btn color3" data-theme="theme3"></div>
+                        <div class="color-btn color4" data-theme="theme4"></div>
+                        <div class="color-btn color5" data-theme="theme5"></div>
+                    </div>
+                    <div class="poem-header">
+                        <div class="poem-title">${poem.name}</div>
+                    </div>
+                    <div class="poem-verses">
+                        ${poem.verses.map(v => `<div class="verse">${v}</div>`).join('')}
+                    </div>
+                    <div class="poem-description">${poem.description}</div>
+                </div>
+            `;
 
-      const seg = new SelfieSegmentation({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1/${f}`});
-      seg.setOptions({modelSelection:1});
+            const container = document.getElementById('currentPoem');
+            container.style.display = 'block';
 
-      seg.onResults(res => {
-        if (!res.segmentationMask) return r(false);
-        ctx.globalCompositeOperation = 'source-in';
-        ctx.drawImage(res.segmentationMask, 0,0,cw,ch);
-        const id = ctx.getImageData(0,0,cw,ch).data;
-        let px = 0;
-        for (let i=3; i<id.length; i+=4) if (id[i]>40) px++;
-        r( (px / (cw*ch)) > 0.11 );
-      });
+            container.querySelectorAll('.color-btn').forEach(btn => {
+                btn.onclick = () => {
+                    container.className = 'poem-container ' + btn.dataset.theme;
+                };
+            });
 
-      await seg.send({image:cv});
-    };
-    img.src = URL.createObjectURL(file);
-  });
-}
+            container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
 
-// ────────────────────────────────────────────────
-// remove.bg – only if person found
-// ────────────────────────────────────────────────
-async function fastRemoveBg(file) {
-  status.textContent = "Cleaning background...";
+        document.querySelectorAll('.poet-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.poet-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                poemDisplay.innerHTML = '';
+                renderPoems(btn.dataset.poet);
+            });
+        });
 
-  const fd = new FormData();
-  fd.append('image_file', file);
-  fd.append('size', 'medium'); // fastest useful size
-
-  try {
-    const res = await fetch('https://api.remove.bg/v1.0/removebg', {
-      method:'POST', headers:{'X-Api-Key':REMOVE_BG_API_KEY}, body:fd
-    });
-    if (!res.ok) throw 1;
-    const blob = await res.blob();
-    return URL.createObjectURL(blob);
-  } catch {
-    status.textContent = "remove.bg failed – using original";
-    return URL.createObjectURL(file);
-  }
-}
-
-// ────────────────────────────────────────────────
-// Instant fake depth (gradient) – no wait
-// ────────────────────────────────────────────────
-function instantDepthTex() {
-  const s = 256;
-  const c = document.createElement('canvas'); c.width = c.height = s;
-  const x = c.getContext('2d');
-  const g = x.createRadialGradient(s/2,s/2,0, s/2,s/2,s*0.8);
-  g.addColorStop(0,'#f0f0f0');
-  g.addColorStop(0.5,'#a0a0a0');
-  g.addColorStop(1,'#303030');
-  x.fillStyle = g; x.fillRect(0,0,s,s);
-  const t = new THREE.CanvasTexture(c); t.needsUpdate = true;
-  return t;
-}
-
-// ────────────────────────────────────────────────
-// Upload → fastest flow
-// ────────────────────────────────────────────────
-inputFile.addEventListener('change', async e => {
-  const f = e.target.files[0];
-  if (!f) return;
-
-  btnVR.disabled = true; btnVR.classList.remove('active');
-  personMesh?.remove(); personMesh = null;
-  status.textContent = "";
-
-  if (!await quickPersonCheck(f)) {
-    status.textContent = "No clear person found – try another photo";
-    return;
-  }
-
-  const colorURL = await fastRemoveBg(f);
-  const depth = instantDepthTex();
-
-  const color = new THREE.TextureLoader().load(colorURL, t=> t.colorSpace = THREE.SRGBColorSpace);
-
-  const g = new THREE.PlaneGeometry(1.25, 1.85, 48, 48); // low segments = fast render
-  g.rotateX(-Math.PI/2);
-
-  const m = new THREE.MeshStandardMaterial({
-    map: color,
-    displacementMap: depth,
-    displacementScale: 0.18,   // gentle with fake depth
-    displacementBias: -0.06,
-    roughness: 0.82,
-    metalness: 0.02,
-    transparent: true,
-    side: THREE.DoubleSide
-  });
-
-  personMesh = new THREE.Mesh(g, m);
-
-  const sh = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.4,2.4),
-    new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.32})
-  );
-  sh.rotation.x = -Math.PI/2; sh.position.y = -0.004;
-  personMesh.add(sh);
-
-  status.textContent = "3D ready! Click to see in Mixed Reality";
-  btnVR.classList.add('active');
-  btnVR.disabled = false;
-});
-
-// ────────────────────────────────────────────────
-// Enter VR
-// ────────────────────────────────────────────────
-btnVR.addEventListener('click', async () => {
-  if (!personMesh) return alert("Upload photo first");
-
-  if (!navigator.xr || !await navigator.xr.isSessionSupported('immersive-ar')) {
-    document.getElementById('fallback').style.display = 'flex';
-    return;
-  }
-
-  try {
-    currentSession = await navigator.xr.requestSession('immersive-ar', {optionalFeatures:['local-floor']});
-    renderer.xr.setSession(currentSession);
-
-    currentSession.addEventListener('end', () => {
-      currentSession = null;
-      document.getElementById('ui').style.display = 'flex';
-      personMesh?.remove();
-      btnVR.classList.remove('active'); btnVR.disabled = true;
-    });
-
-    document.getElementById('ui').style.display = 'none';
-    personMesh.position.set(0, 0.92, -2.1);
-    scene.add(personMesh);
-
-  } catch(e) { alert("VR start failed\n"+e.message); }
-});
-
-// ────────────────────────────────────────────────
-function loop() {
-  renderer.setAnimationLoop(() => renderer.render(scene, camera));
-}
-
-initThree();
-loop();
-
-</script>
+        // تهيئة
+        renderPoems('all');
+    </script>
 </body>
 </html>
